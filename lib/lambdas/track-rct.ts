@@ -6,6 +6,11 @@ const PRIMARY_KEY = process.env.PRIMARY_KEY || '';
 
 const db = DynamoDBDocument.from(new DynamoDB())
 
+/**
+ * This handler retrieves the status message based on session ID.
+ * @param event 
+ * @returns 
+ */
 export const handler = async (event: any = {}): Promise<any> => {
     const requestedSessionId = event.pathParameters.id;
 

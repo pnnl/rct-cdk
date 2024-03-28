@@ -1,4 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
+import * as ec2 from 'aws-cdk-lib/aws-ec2'
+import * as ecs from 'aws-cdk-lib/aws-ecs'
+import * as ecr from 'aws-cdk-lib/aws-ecr'
+import * as iam from 'aws-cdk-lib/aws-iam'
 import { Construct } from 'constructs';
 import { AttributeType,  Table} from 'aws-cdk-lib/aws-dynamodb';
 import { NodejsFunction, NodejsFunctionProps } from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -6,7 +10,7 @@ import { join } from 'path';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { LambdaIntegration, RestApi } from 'aws-cdk-lib/aws-apigateway';
 import * as s3 from 'aws-cdk-lib/aws-s3'
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { EmrContainersCreateVirtualCluster } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 
 export class RctCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -22,12 +26,7 @@ export class RctCdkStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY
     })
 
-    // The code that defines your stack goes here
-
-    // example resource
-    // const queue = new sqs.Queue(this, 'RctCdkQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
+    //Create dynamoDB
     const sessionsTable = new Table(this, 'sessions', {
       partitionKey: {
         name: 'sessionId',
@@ -43,12 +42,67 @@ export class RctCdkStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY, // NOT recommended for production code
     });
 
+    //vpc with 2 availability zones (not sure if it is needed.)
+    const vpc = new ec2.Vpc(this, 'rctVpc', {natGateways: 2, maxAzs: 2}); //parameters to be updated
+    //Repo that stores the python image
+    const ecsRepo = new ecr.Repository(this, 'ECRRepo', {
+      repositoryName: `${props?.stackName}-package-repository`,
+      lifecycleRules: [{maxImageCount: 5}] // no need to store lots of old images
+    })
+
+    //ECS cluster to deploy tasks to
+    const cluster = new ecs.Cluster(this, "ECSCluster", {
+      clusterName: `${props?.stackName}-cluster`,
+      vpc,
+      containerInsights: true // allow metrics to show up in cloudwatch
+    })
+
+    //ecs task for defining config
+    const ECSTaskRunner = new ecs.TaskDefinition(this, 'ECSTaskDef', {
+      family: `${props?.stackName}-task-definition`,
+      compatibility: ecs.Compatibility.FARGATE,
+      // memory and cpu - can be parameterized in the props.
+      cpu: "1024",
+      memoryMiB: "2048"
+    })
+
+    // permissions/policies may needed?
+    ECSTaskRunner.addToTaskRolePolicy(new iam.PolicyStatement({
+      actions: ["ecs:StartTelemetrySession"] as string[],
+      effect: iam.Effect.ALLOW,
+      resources: ["*"]
+    }))
+
+    // attach the docker container to the task
+    const container = ECSTaskRunner.addContainer("ECSContainer", {
+      containerName: `${props?.stackName}-container`,
+      image: ecs.ContainerImage.fromEcrRepository(ecsRepo, "latest"),
+      environment: {
+        //add any environment needed? cloud watch?
+      },
+      secrets: {
+        // what is the secretes?
+      },
+      logging:ecs.LogDriver.awsLogs({streamPrefix: `${props?.stackName}-container-logs`})
+    })
+
+    //subnet id values
+    const subnets = vpc.selectSubnets({
+      subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS
+    }).subnets;
+
+    //*************************************
+    // Lambda functions
     const nodeJsFunctionProps: NodejsFunctionProps = {
       depsLockFilePath: join(__dirname, 'package-lock.json'),
       environment: {
         PRIMARY_KEY: 'sessionId',
         TABLE_NAME: sessionsTable.tableName,
-        BUCKET_KEY: 'userFilesBucket'
+        BUCKET_KEY: 'userFilesBucket',
+        ECS_TASK_ARN: ECSTaskRunner.taskDefinitionArn,
+        ECS_CLUSTER_ARN: cluster.clusterArn,
+        ECS_CONTAINER_NAME: container.containerName,
+        SUBNET_IDS: subnets.map(sub => sub.subnetId).join(","),
       },
       runtime: Runtime.NODEJS_20_X,
       timeout: cdk.Duration.seconds(30)
@@ -58,6 +112,7 @@ export class RctCdkStack extends cdk.Stack {
     const runRCTEvaluationLambda = new NodejsFunction(this, 'runRCTFunction', {
       entry: join(__dirname, 'lambdas', 'run-rct.ts'),
       ...nodeJsFunctionProps,
+      // do we need to add policy for this lambda to access ECS?
     });
 
     //tracking the RCT evaluation progress

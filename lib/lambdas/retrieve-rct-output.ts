@@ -5,7 +5,11 @@ import { Readable } from 'stream';
 const BUCKET_KEY = process.env.BUCKET_KEY || '';
 const s3Client = new S3Client();
 
-
+/**
+ * This handler retrieves the report from S3 bucket by session ID.
+ * @param event 
+ * @returns 
+ */
 export const handler = async (event: any = {}): Promise<any> => {
     const requestedSessionId = event.pathParameters.id;
 

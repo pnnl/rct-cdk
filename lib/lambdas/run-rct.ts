@@ -5,20 +5,31 @@ import {S3Client, PutObjectCommand, PutObjectCommandInput} from '@aws-sdk/client
 
 const TABLE_NAME = process.env.TABLE_NAME || '';
 const BUCKET_KEY = process.env.BUCKET_KEY || '';
+const ECS_CLUSTER_ARN = process.env.ECS_CLUSTER_ARN || '';
+const ECS_TASK_ARN = process.env.ECS_TASK_ARN || '';
+const ECS_CONTAINER_NAME = process.env.ECS_CONTAINER_NAME || '';
+const SUBNET_IDS = process.env.SUBNET_IDS || '';
+
 const s3Client = new S3Client();
+const {ECS} = require("aws-sdk");
 
 const db = DynamoDBDocument.from(new DynamoDB())
-
+/**
+ * This handler runs the ruleset checking tool evaluation
+ * It does three things: 
+ * 1. Save uploaded files to S3
+ * 2. Add a record to dynamoDB
+ * 3. Kick off a RCT calculation
+ * @param event
+ * @returns 
+ */
 export const handler = async (event: any = {}): Promise<any> => {
-    if(!event) {
-        if(!event.body)
-        {
-            return {statusCode: 400, body: 'invalid request, missing requested json files'};
-        }
-        else if(!event.queryParameters.ruleset)
-        {
-            return {statusCode: 400, body: 'invalid request, missing ruleset.'};
-        }
+    if(!event || !event.body) {
+        return {statusCode: 400, body: 'invalid request, missing requested json files'};
+    }
+
+    if(!event.queryParameters.ruleset) {
+        return {statusCode: 400, body: 'invalid request, missing ruleset.'};
     }
 
     const {v4: uuidv4} = require('uuid');
@@ -42,7 +53,30 @@ export const handler = async (event: any = {}): Promise<any> => {
     }
 
     // 3. Send the job.
-
+    const ecs = new ECS();
+    await ecs.runTask({
+        cluster: ECS_CLUSTER_ARN,
+        taskDefinition: ECS_TASK_ARN,
+        networkConfiguration: {
+            awsvpcConfiguration: {
+                subnets: SUBNET_IDS.split(","),
+                assignPublicIp: "DISABLED"
+            }
+        },
+        overrides:{
+            containerOverrides: [
+                {
+                    name: ECS_CONTAINER_NAME,
+                    environment: [
+                        //is this the right place to add the function argument?
+                    ]
+                }
+            ]
+        },
+        count: 1,
+        launchType: "FARGATE"
+    }).promise();
+    
     // 4. write to the dynamo db
     await db.put({
         TableName: TABLE_NAME,
