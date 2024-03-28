@@ -1,10 +1,9 @@
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import {S3Client, PutObjectCommand, PutObjectCommandInput} from '@aws-sdk/client-s3'
-import {v4 as uuidv4} from 'uuid';
+
 
 const TABLE_NAME = process.env.TABLE_NAME || '';
-const PRIMARY_KEY = process.env.PRIMARY_KEY || '';
 const BUCKET_KEY = process.env.BUCKET_KEY || '';
 const s3Client = new S3Client();
 
@@ -21,6 +20,8 @@ export const handler = async (event: any = {}): Promise<any> => {
             return {statusCode: 400, body: 'invalid request, missing ruleset.'};
         }
     }
+
+    const {v4: uuidv4} = require('uuid');
     const uploadedFiles = JSON.parse(event.body);
     const ruleset = event.queryParameters.ruleset;
 

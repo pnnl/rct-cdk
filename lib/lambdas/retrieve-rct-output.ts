@@ -1,5 +1,5 @@
 
-import {S3Client, PutObjectCommand, PutObjectCommandInput, GetObjectCommand, GetObjectCommandInput} from '@aws-sdk/client-s3'
+import {S3Client, GetObjectCommand, GetObjectCommandInput} from '@aws-sdk/client-s3'
 import { Readable } from 'stream';
 
 const BUCKET_KEY = process.env.BUCKET_KEY || '';

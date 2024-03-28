@@ -49,7 +49,7 @@ export class RctCdkStack extends cdk.Stack {
           'aws-sdk',
         ],
       },
-      depsLockFilePath: join(__dirname, 'lambdas', 'package-lock.json'),
+      depsLockFilePath: join(__dirname, 'package-lock.json'),
       environment: {
         PRIMARY_KEY: 'sessionId',
         TABLE_NAME: sessionsTable.tableName,
