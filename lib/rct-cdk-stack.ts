@@ -44,11 +44,6 @@ export class RctCdkStack extends cdk.Stack {
     });
 
     const nodeJsFunctionProps: NodejsFunctionProps = {
-      bundling: {
-        externalModules: [
-          'aws-sdk',
-        ],
-      },
       depsLockFilePath: join(__dirname, 'package-lock.json'),
       environment: {
         PRIMARY_KEY: 'sessionId',
