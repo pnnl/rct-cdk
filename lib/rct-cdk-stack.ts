@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2'
 import * as ecs from 'aws-cdk-lib/aws-ecs'
 import * as ecr from 'aws-cdk-lib/aws-ecr'
-import * as iam from 'aws-cdk-lib/aws-iam'
+import * as logs from 'aws-cdk-lib/aws-logs'
 import { Construct } from 'constructs';
 import { AttributeType,  Table} from 'aws-cdk-lib/aws-dynamodb';
 import { NodejsFunction, NodejsFunctionProps } from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -11,39 +11,46 @@ import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { LambdaIntegration, RestApi } from 'aws-cdk-lib/aws-apigateway';
 import * as s3 from 'aws-cdk-lib/aws-s3'
 import { EmrContainersCreateVirtualCluster } from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import { QueueProcessingFargateService } from 'aws-cdk-lib/aws-ecs-patterns';
+
+interface RCTStackProps extends cdk.StackProps {
+  appName: string, //rct
+  deploymentEnv: string, //dev, prod,.. 
+}
 
 export class RctCdkStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: RCTStackProps) {
     super(scope, id, props);
 
     //Create S3 Bucket
-    const bucket = new s3.Bucket(this, 'userFilesBucket', {
+    const bucket = new s3.Bucket(this, `${props?.appName}-${props?.deploymentEnv}-bucket`, {
       /**
        *  The default removal policy is RETAIN, which means that cdk destroy will not attempt to delete
        * the new table, and it will remain in your account until manually deleted. By setting the policy to
        * DESTROY, cdk destroy will delete the table (even if it has data in it)
        */
-      removalPolicy: cdk.RemovalPolicy.DESTROY
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      bucketName: `${props?.appName}-${props?.deploymentEnv}-bucket`
     })
 
     //Create dynamoDB
-    const sessionsTable = new Table(this, 'sessions', {
+    const sessionsTable = new Table(this, `${props?.appName}-${props?.deploymentEnv}-session`, {
       partitionKey: {
         name: 'sessionId',
         type: AttributeType.STRING
       },
-      tableName: 'sessions',
+      tableName: `${props?.appName}-${props?.deploymentEnv}-session`,
 
       /**
        *  The default removal policy is RETAIN, which means that cdk destroy will not attempt to delete
        * the new table, and it will remain in your account until manually deleted. By setting the policy to
        * DESTROY, cdk destroy will delete the table (even if it has data in it)
        */
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // NOT recommended for production code
+      removalPolicy: cdk.RemovalPolicy.RETAIN, // NOT recommended for production code
     });
 
     //vpc with 2 availability zones (not sure if it is needed.)
-    const vpc = new ec2.Vpc(this, 'rctVpc', {natGateways: 2, maxAzs: 2}); //parameters to be updated
+    const vpc = ec2.Vpc.fromLookup(this, 'rctVPC', {vpcId: 'vpc-00ff3e7b236c5f892'}) //find one PNNL created
     //Repo that stores the python image
     const ecsRepo = new ecr.Repository(this, 'ECRRepo', {
       repositoryName: `${props?.stackName}-package-repository`,
@@ -58,23 +65,29 @@ export class RctCdkStack extends cdk.Stack {
     })
 
     //ecs task for defining config
-    const ECSTaskRunner = new ecs.TaskDefinition(this, 'ECSTaskDef', {
+    const FargateTaskRunner = new ecs.FargateTaskDefinition(this, 'ECSTaskDef', {
       family: `${props?.stackName}-task-definition`,
-      compatibility: ecs.Compatibility.FARGATE,
       // memory and cpu - can be parameterized in the props.
-      cpu: "1024",
-      memoryMiB: "2048"
+      cpu: 1024,
+      memoryLimitMiB: 2048
     })
 
     // permissions/policies may needed?
-    ECSTaskRunner.addToTaskRolePolicy(new iam.PolicyStatement({
-      actions: ["ecs:StartTelemetrySession"] as string[],
-      effect: iam.Effect.ALLOW,
-      resources: ["*"]
-    }))
+    //ECSTaskRunner.addToTaskRolePolicy(new iam.PolicyStatement({
+    //  actions: ["ecs:StartTelemetrySession"] as string[],
+    //  effect: iam.Effect.ALLOW,
+    //  resources: ["*"]
+    //}))
+
+    //Create a log group
+    const rctLogGroup = new logs.LogGroup(this, "rctLogs", {
+      logGroupName: 'rctLogGroup',
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      retention: logs.RetentionDays.ONE_WEEK // may need to update for production.
+    })
 
     // attach the docker container to the task
-    const container = ECSTaskRunner.addContainer("ECSContainer", {
+    const container = FargateTaskRunner.addContainer("ECSContainer", {
       containerName: `${props?.stackName}-container`,
       image: ecs.ContainerImage.fromEcrRepository(ecsRepo, "latest"),
       environment: {
@@ -83,7 +96,11 @@ export class RctCdkStack extends cdk.Stack {
       secrets: {
         // what is the secretes?
       },
-      logging:ecs.LogDriver.awsLogs({streamPrefix: `${props?.stackName}-container-logs`})
+      logging:ecs.LogDriver.awsLogs({streamPrefix: `${props?.stackName}-container-logs`, logGroup: rctLogGroup})
+    })
+
+    const queue = new QueueProcessingFargateService(this, "rctRunQueue", {
+      
     })
 
     //subnet id values
@@ -99,7 +116,7 @@ export class RctCdkStack extends cdk.Stack {
         PRIMARY_KEY: 'sessionId',
         TABLE_NAME: sessionsTable.tableName,
         BUCKET_KEY: 'userFilesBucket',
-        ECS_TASK_ARN: ECSTaskRunner.taskDefinitionArn,
+        ECS_TASK_ARN: FargateTaskRunner.taskDefinitionArn,
         ECS_CLUSTER_ARN: cluster.clusterArn,
         ECS_CONTAINER_NAME: container.containerName,
         SUBNET_IDS: subnets.map(sub => sub.subnetId).join(","),
