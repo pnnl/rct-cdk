@@ -50,7 +50,7 @@ export class RctCdkStack extends cdk.Stack {
     });
 
     //vpc with 2 availability zones (not sure if it is needed.)
-    const vpc = ec2.Vpc.fromLookup(this, 'rctVPC', {vpcId: 'vpc-00ff3e7b236c5f892'}) //find one PNNL created
+    const vpc = ec2.Vpc.fromLookup(this, `${props?.appName}-${props?.deploymentEnv}-ec2`, {vpcId: 'vpc-00ff3e7b236c5f892'}) //find one PNNL created
     //Repo that stores the python image
     const ecsRepo = new ecr.Repository(this, 'ECRRepo', {
       repositoryName: `${props?.stackName}-package-repository`,
@@ -58,15 +58,15 @@ export class RctCdkStack extends cdk.Stack {
     })
 
     //ECS cluster to deploy tasks to
-    const cluster = new ecs.Cluster(this, "ECSCluster", {
-      clusterName: `${props?.stackName}-cluster`,
+    const cluster = new ecs.Cluster(this, `${props?.appName}-${props?.deploymentEnv}-cluster`, {
+      clusterName: `${props?.appName}-${props?.deploymentEnv}-session`,
       vpc,
       containerInsights: true // allow metrics to show up in cloudwatch
     })
 
     //ecs task for defining config
-    const FargateTaskRunner = new ecs.FargateTaskDefinition(this, 'ECSTaskDef', {
-      family: `${props?.stackName}-task-definition`,
+    const FargateTaskRunner = new ecs.FargateTaskDefinition(this, `${props?.appName}-${props?.deploymentEnv}-fargate-task-definition`, {
+      family: `${props?.appName}-${props?.deploymentEnv}-fargate-task-definition`,
       // memory and cpu - can be parameterized in the props.
       cpu: 1024,
       memoryLimitMiB: 2048
@@ -80,8 +80,8 @@ export class RctCdkStack extends cdk.Stack {
     //}))
 
     //Create a log group
-    const rctLogGroup = new logs.LogGroup(this, "rctLogs", {
-      logGroupName: 'rctLogGroup',
+    const rctLogGroup = new logs.LogGroup(this, `${props?.appName}-${props?.deploymentEnv}-log-group`, {
+      logGroupName: `${props?.appName}-${props?.deploymentEnv}-log-group`,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       retention: logs.RetentionDays.ONE_WEEK // may need to update for production.
     })
@@ -99,8 +99,19 @@ export class RctCdkStack extends cdk.Stack {
       logging:ecs.LogDriver.awsLogs({streamPrefix: `${props?.stackName}-container-logs`, logGroup: rctLogGroup})
     })
 
-    const queue = new QueueProcessingFargateService(this, "rctRunQueue", {
-      
+    const queuedFargateService = new QueueProcessingFargateService(this, "rctRunQueue", {
+      cluster,
+      cpu: 1024,
+      memoryLimitMiB: 2048,
+      image: ecs.ContainerImage.fromEcrRepository(ecsRepo, "latest"),
+      containerName: `${props?.appName}-${props?.deploymentEnv}-container`,
+      environment: {
+        //add any environment needed? cloud watch?
+      },
+      secrets: {
+        // what is the secretes?
+      },
+      logDriver:ecs.LogDriver.awsLogs({streamPrefix: `${props?.appName}-${props?.deploymentEnv}-container-logs`, logGroup: rctLogGroup})
     })
 
     //subnet id values
@@ -115,10 +126,9 @@ export class RctCdkStack extends cdk.Stack {
       environment: {
         PRIMARY_KEY: 'sessionId',
         TABLE_NAME: sessionsTable.tableName,
-        BUCKET_KEY: 'userFilesBucket',
-        ECS_TASK_ARN: FargateTaskRunner.taskDefinitionArn,
-        ECS_CLUSTER_ARN: cluster.clusterArn,
-        ECS_CONTAINER_NAME: container.containerName,
+        BUCKET_KEY: `${props?.appName}-${props?.deploymentEnv}-bucket`,
+        SERVICE_NAME: queuedFargateService.service.serviceName,
+        ECS_CLUSTER_ARN: queuedFargateService.cluster.clusterArn,
         SUBNET_IDS: subnets.map(sub => sub.subnetId).join(","),
       },
       runtime: Runtime.NODEJS_20_X,

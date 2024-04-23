@@ -6,8 +6,7 @@ import {S3Client, PutObjectCommand, PutObjectCommandInput} from '@aws-sdk/client
 const TABLE_NAME = process.env.TABLE_NAME || '';
 const BUCKET_KEY = process.env.BUCKET_KEY || '';
 const ECS_CLUSTER_ARN = process.env.ECS_CLUSTER_ARN || '';
-const ECS_TASK_ARN = process.env.ECS_TASK_ARN || '';
-const ECS_CONTAINER_NAME = process.env.ECS_CONTAINER_NAME || '';
+const SERVICE_NAME = process.env.SERVICE_NAME || '';
 const SUBNET_IDS = process.env.SUBNET_IDS || '';
 
 const s3Client = new S3Client();
@@ -56,24 +55,8 @@ export const handler = async (event: any = {}): Promise<any> => {
     const ecs = new ECS();
     await ecs.runTask({
         cluster: ECS_CLUSTER_ARN,
-        taskDefinition: ECS_TASK_ARN,
-        networkConfiguration: {
-            awsvpcConfiguration: {
-                subnets: SUBNET_IDS.split(","),
-                assignPublicIp: "DISABLED"
-            }
-        },
-        overrides:{
-            containerOverrides: [
-                {
-                    name: ECS_CONTAINER_NAME,
-                    environment: [
-                        //is this the right place to add the function argument?
-                    ]
-                }
-            ]
-        },
-        count: 1,
+        taskDefinition: SERVICE_NAME,
+        count: 10,
         launchType: "FARGATE"
     }).promise();
     
