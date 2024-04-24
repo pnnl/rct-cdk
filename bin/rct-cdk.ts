@@ -11,6 +11,7 @@ const {
 } = process.env;
 
 const app = new App();
+
 new RctCdkStack(app, 'RctCdkStack', {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
@@ -19,6 +20,7 @@ new RctCdkStack(app, 'RctCdkStack', {
   /* Uncomment the next line if you know exactly what Account and Region you
    * want to deploy the stack to. */
   env: { account: String(ACCOUNT), region: String(REGION) },
-
+  appName:"rct",
+  deploymentEnv: "dev"
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
 });
