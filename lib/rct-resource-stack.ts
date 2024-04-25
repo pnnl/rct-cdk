@@ -6,7 +6,7 @@ import { AttributeType,  Table} from 'aws-cdk-lib/aws-dynamodb';
 import * as ecr from 'aws-cdk-lib/aws-ecr'
 import * as logs from 'aws-cdk-lib/aws-logs'
 
-export class RctResourceStake extends cdk.Stack{
+export class RctResourceStack extends cdk.Stack{
     constructor(scope: Construct, id: string, props?: RCTStackProps) {
         super(scope, id, props);
 
