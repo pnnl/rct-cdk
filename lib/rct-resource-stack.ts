@@ -11,7 +11,7 @@ export class RctResourceStack extends cdk.Stack{
         super(scope, id, props);
 
         //Create S3 Bucket
-        const bucket = new s3.Bucket(this, `${props?.appName}-${props?.deploymentEnv}-bucket`, {
+        new s3.Bucket(this, `${props?.appName}-${props?.deploymentEnv}-bucket`, {
             /**
             *  The default removal policy is RETAIN, which means that cdk destroy will not attempt to delete
             * the new table, and it will remain in your account until manually deleted. By setting the policy to
@@ -22,7 +22,7 @@ export class RctResourceStack extends cdk.Stack{
         })
         //Create a Dynamo Table
         //Create dynamoDB
-        const sessionsTable = new Table(this, `${props?.appName}-${props?.deploymentEnv}-session`, {
+       new Table(this, `${props?.appName}-${props?.deploymentEnv}-session`, {
             partitionKey: {
             name: 'sessionId',
             type: AttributeType.STRING
@@ -39,13 +39,13 @@ export class RctResourceStack extends cdk.Stack{
 
         //Create ECR for RCT image
         //Repo that stores the python image
-        const ecsRepo = new ecr.Repository(this, 'ECRRepo', {
+        new ecr.Repository(this, 'ECRRepo', {
             repositoryName: `${props?.stackName}-package-repository`,
             lifecycleRules: [{maxImageCount: 5}] // no need to store lots of old images
         })
 
         //Create a log group
-        const logGroup = new logs.LogGroup(this, `${props?.appName}-${props?.deploymentEnv}-log-group`, {
+        new logs.LogGroup(this, `${props?.appName}-${props?.deploymentEnv}-log-group`, {
             logGroupName: `${props?.appName}-${props?.deploymentEnv}-log-group`,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             retention: logs.RetentionDays.ONE_WEEK // may need to update for production.
