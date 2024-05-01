@@ -40,7 +40,7 @@ export class RctResourceStack extends cdk.Stack{
         //Create ECR for RCT image
         //Repo that stores the python image
         new ecr.Repository(this, 'ECRRepo', {
-            repositoryName: `${props?.stackName}-package-repository`,
+            repositoryName: `${props?.appName}-${props?.deploymentEnv}-package-repository`,
             lifecycleRules: [{maxImageCount: 5}] // no need to store lots of old images
         })
 
