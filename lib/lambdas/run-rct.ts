@@ -27,13 +27,13 @@ export const handler = async (event: any = {}): Promise<any> => {
         return {statusCode: 400, body: 'invalid request, missing requested json files'};
     }
 
-    if(!event.queryParameters.ruleset) {
+    if(!event.queryStringParameters?.ruleset) {
         return {statusCode: 400, body: 'invalid request, missing ruleset.'};
     }
 
     const {v4: uuidv4} = require('uuid');
     const uploadedFiles = JSON.parse(event.body);
-    const ruleset = event.queryParameters.ruleset;
+    const ruleset = event.queryStringParameters.ruleset;
 
     //1. generate a new session ID
     const sessionId = uuidv4();
@@ -41,24 +41,26 @@ export const handler = async (event: any = {}): Promise<any> => {
     
     //2. upload files to S3
     for (const rpd of uploadedFiles) {
-        const {rpdName, rpdContext} = rpd;
+        // const {rpdName, rpdContext} = rpd;
+        const rpdName = 'test'
+        const rpdContext = rpd
         const uploadParams: PutObjectCommandInput = {
             Bucket: BUCKET_KEY,
             Key: `${sessionId}/${rpdName}`,
-            Body: rpdContext,
+            Body: JSON.stringify(rpdContext),
             ContentType: 'application/json'
         }
         await s3Client.send(new PutObjectCommand(uploadParams))
     }
 
-    // 3. Send the job.
-    const ecs = new ECS();
-    await ecs.runTask({
-        cluster: ECS_CLUSTER_ARN,
-        taskDefinition: SERVICE_NAME,
-        count: 10,
-        launchType: "FARGATE"
-    }).promise();
+    // //3. Send the job.
+    // const ecs = new ECS();
+    // await ecs.runTask({
+    //     cluster: ECS_CLUSTER_ARN,
+    //     taskDefinition: SERVICE_NAME,
+    //     count: 10,
+    //     launchType: "FARGATE"
+    // }).promise();
     
     // 4. write to the dynamo db
     await db.put({
@@ -75,7 +77,8 @@ export const handler = async (event: any = {}): Promise<any> => {
     return {
         statusCode: 200,
         body: JSON.stringify({
-            sessionId: sessionId
+            sessionId: sessionId,
+            service_name: SERVICE_NAME
         })
     };
 }
