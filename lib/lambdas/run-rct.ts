@@ -7,6 +7,7 @@ const TABLE_NAME = process.env.TABLE_NAME || '';
 const BUCKET_KEY = process.env.BUCKET_KEY || '';
 const ECS_CLUSTER_ARN = process.env.ECS_CLUSTER_ARN || '';
 const SERVICE_NAME = process.env.SERVICE_NAME || '';
+const TASK_DEFINITION_ARN = process.env.TASK_DEFINITION_ARN || '';
 const SUBNET_IDS = process.env.SUBNET_IDS || '';
 
 const s3Client = new S3Client();
@@ -53,14 +54,19 @@ export const handler = async (event: any = {}): Promise<any> => {
         await s3Client.send(new PutObjectCommand(uploadParams))
     }
 
-    // //3. Send the job.
-    // const ecs = new ECS();
-    // await ecs.runTask({
-    //     cluster: ECS_CLUSTER_ARN,
-    //     taskDefinition: SERVICE_NAME,
-    //     count: 10,
-    //     launchType: "FARGATE"
-    // }).promise();
+    //3. Send the job.
+    const ecs = new ECS();
+    await ecs.runTask({
+        cluster: ECS_CLUSTER_ARN,
+        taskDefinition: TASK_DEFINITION_ARN,
+        count: 10,
+        launchType: "FARGATE",
+        networkConfiguration: {
+         awsvpcConfiguration: {
+            subnets: SUBNET_IDS.split(",")
+         }   
+        }
+    }).promise();
     
     // 4. write to the dynamo db
     await db.put({

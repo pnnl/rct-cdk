@@ -46,13 +46,16 @@ export class RctCdkStack extends cdk.Stack {
     //  effect: iam.Effect.ALLOW,
     //  resources: ["*"]
     //}))
+    const taskDefinition = new ecs.FargateTaskDefinition(this, `${props?.appName}-${props?.deploymentEnv}-taskDef`)
+    taskDefinition.addContainer(`${props?.appName}-${props?.deploymentEnv}-container`, {
+      image: ecs.ContainerImage.fromEcrRepository(ecsRepo, "latest"),
+    })
 
     const queuedFargateService = new QueueProcessingFargateService(this, "rctRunQueue", {
       cluster,
+      taskDefinition,
       cpu: 1024,
       memoryLimitMiB: 2048,
-      image: ecs.ContainerImage.fromEcrRepository(ecsRepo, "latest"),
-      containerName: `${props?.appName}-${props?.deploymentEnv}-container`,
       environment: {
         //add any environment needed? cloud watch?
       },
@@ -76,6 +79,7 @@ export class RctCdkStack extends cdk.Stack {
         TABLE_NAME: sessionsTable.tableName,
         BUCKET_KEY: `${props?.appName}-${props?.deploymentEnv}-bucket`,
         SERVICE_NAME: queuedFargateService.service.serviceName,
+        TASK_DEFINITION_ARN: queuedFargateService.taskDefinition.taskDefinitionArn,
         ECS_CLUSTER_ARN: queuedFargateService.cluster.clusterArn,
         SUBNET_IDS: subnets.map(sub => sub.subnetId).join(","),
       },
@@ -107,6 +111,9 @@ export class RctCdkStack extends cdk.Stack {
     sessionsTable.grantReadWriteData(trackRCTProgressLambda);
     bucket.grantReadWrite(runRCTEvaluationLambda);
     bucket.grantReadWrite(retrieveRCTEvaluationOutputLambda);
+
+    // grant permission for lambda to run ecs task
+    taskDefinition.grantRun(runRCTEvaluationLambda);
 
     // API gateway
     // 1. Integrate the lambda functions with API gateway resource
