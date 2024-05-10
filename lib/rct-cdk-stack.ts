@@ -11,6 +11,9 @@ import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
 import { Bucket } from "aws-cdk-lib/aws-s3";
 import { QueueProcessingLambda } from "./constucts/queueProcessingLambda";
+import { RuleSetCountLambda } from "./constucts/ruleSetCountLambda";
+import { RuleCountLambda } from "./constucts/ruleCountLambda";
+import { RuleSetReportCountLambda } from "./constucts/ruleSetAvailableReportsLambda";
 
 export interface RCTStackProps extends StackProps {
   applicationName: string;
@@ -64,7 +67,7 @@ export class RctCdkStack extends Stack {
     };
 
     // Lambda functions
-    const runRCTEvaluationLambda = new NodejsFunction(this, "runRCTFunction", {
+    const runRCTEvaluationLambda = new NodejsFunction(this, `${applicationName}-${deploymentEnv}-runRCT`, {
       entry: join(__dirname, "lambdas", "run-rct.ts"),
       ...nodeJsFunctionProps,
       // do we need to add policy for this lambda to access ECS?
@@ -73,7 +76,7 @@ export class RctCdkStack extends Stack {
     //tracking the RCT evaluation progress
     const trackRCTProgressLambda = new NodejsFunction(
       this,
-      "trackRCTFunction",
+      `${applicationName}-${deploymentEnv}-trackRCTEvaluation`,
       {
         entry: join(__dirname, "lambdas", "track-rct.ts"),
         ...nodeJsFunctionProps,
@@ -83,12 +86,25 @@ export class RctCdkStack extends Stack {
     //Retrieve output files
     const retrieveRCTEvaluationOutputLambda = new NodejsFunction(
       this,
-      "retrieveRCTOutputFunction",
+      `${applicationName}-${deploymentEnv}-retrieveRCTOutput`,
       {
         entry: join(__dirname, "lambdas", "retrieve-rct-output.ts"),
         ...nodeJsFunctionProps,
       }
     );
+
+    //Create other ruleset lambda constrcuts
+    const rulesetCountLambda = RuleSetCountLambda(this, {
+      ...props,
+    })
+
+    const ruleCountLambda = RuleCountLambda(this, {
+      ...props,
+    })
+
+    const rulesetReportCountLambda = RuleSetReportCountLambda(this, {
+      ...props,
+    })
 
     // grant permissions for lambda to read/write to DynamoDB table and bucket
     sessionsTable.grantReadWriteData(runRCTEvaluationLambda);
@@ -107,7 +123,15 @@ export class RctCdkStack extends Stack {
     const retrieveRCTEvaluationOutputIntegration = new LambdaIntegration(
       retrieveRCTEvaluationOutputLambda
     );
-
+    const countNumRuleSetsIntegration = new LambdaIntegration(
+      rulesetCountLambda
+    );
+    const countNumRulesIntegration = new LambdaIntegration(
+      ruleCountLambda
+    );
+    const countNumRuleSetReportsIntegration = new LambdaIntegration(
+      rulesetReportCountLambda
+    );
     // Create an API Gateway resource for each of the CRUD operations
     const api = new RestApi(this, "rct", {
       restApiName: "Ruleset Checking Tool Service",
@@ -121,6 +145,13 @@ export class RctCdkStack extends Stack {
     const trackEvaluation = evaluate.addResource("{id}");
     trackEvaluation.addMethod("GET", trackRCTProgressIntegration);
     trackEvaluation.addMethod("POST", retrieveRCTEvaluationOutputIntegration);
+
+    const rulesets = api.root.addResource("rulesets");
+    rulesets.addMethod("GET", countNumRuleSetsIntegration);
+    const rules = api.root.addResource("rules")
+    rules.addMethod("GET", countNumRulesIntegration);
+    const reports = api.root.addResource("reports");
+    reports.addMethod("GET", countNumRuleSetReportsIntegration);
 
     QueueProcessingLambda(this, {
       ...props,
