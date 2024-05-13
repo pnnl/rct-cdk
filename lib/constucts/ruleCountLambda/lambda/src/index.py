@@ -8,15 +8,15 @@ def handler(event, context):
     if ruleset is None:
         return {
             'statusCode': 400,
-            'body': json.dumps({'message': 'invalid request, missing ruleset.'})
+            'body': json.dumps({'message': 'Invalid request, missing ruleset.'})
         }
     num_rules = 0
 
     try:
-        num_rules = count_rules()
+        num_rules = count_rules(ruleset)
     except RCTFailureException as e:
         return {
-            'statusCode': 400,
+            'statusCode': 500,
             'body': json.dumps({'message':e})
         }
 

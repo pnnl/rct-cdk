@@ -7,5 +7,5 @@ def handler(event, context):
     num_rulesets = len(rulesets)
     return {
         'statusCode': 200,
-        'body': json.dump({'num_rulesets': num_rulesets, 'rulesets': rulesets})
+        'body': json.dumps({'num_rulesets': num_rulesets, 'rulesets': rulesets})
     }
