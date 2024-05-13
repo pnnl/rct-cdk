@@ -21,28 +21,20 @@ const db = DynamoDBDocument.from(new DynamoDB())
  */
 export const handler = async (event: any = {}): Promise<any> => {
     if(!event || !event.body) {
-        return {statusCode: 400, body: 'invalid request, missing requested json files'};
+        return {statusCode: 400, body: 'invalid request, missing requested zip file'};
     }
 
     if(!event.queryStringParameters?.ruleset) {
         return {statusCode: 400, body: 'invalid request, missing ruleset.'};
     }
 
+    if(!event.queryStringParameters?.reports) {
+        return {statusCode: 400, body: 'invalid request, missing reports.'};
+    }
+
     const sessionId = uuidv4();
     const jobId = uuidv4();
 
-    // Upload zip to S3 input bucket
-    const fileData = Buffer.from(event.body, 'base64');
-    const fileKey = uuidv4();
-
-    const uploadParams: PutObjectCommandInput = {
-        Bucket: INPUT_BUCKET_KEY,
-        Key: `${fileKey}.zip`,
-        Body: fileData,
-        ContentType: "application/zip",
-    }
-    await s3Client.send(new PutObjectCommand(uploadParams))
-    
     // Entry Fields
     // PK: Entry UUID
     // SK: Datetime?
@@ -59,6 +51,7 @@ export const handler = async (event: any = {}): Promise<any> => {
     // Write to dynamo db
     const ruleset = event.queryStringParameters.ruleset;
     const reports = event.queryStringParameters.reports;
+    const fileKey = uuidv4();
 
     await db.put({
         TableName: TABLE_NAME,
@@ -76,6 +69,18 @@ export const handler = async (event: any = {}): Promise<any> => {
             reports: reports
         }
     })
+
+    // Upload zip to S3 input bucket
+    const fileData = Buffer.from(event.body, 'base64');
+
+    const uploadParams: PutObjectCommandInput = {
+        Bucket: INPUT_BUCKET_KEY,
+        Key: `${fileKey}.zip`,
+        Body: fileData,
+        ContentType: "application/zip",
+    }
+    await s3Client.send(new PutObjectCommand(uploadParams))
+    
 
     // Return session id
     return {
