@@ -2,7 +2,7 @@
 import {S3Client, GetObjectCommand, GetObjectCommandInput} from '@aws-sdk/client-s3'
 import { Readable } from 'stream';
 
-const BUCKET_KEY = process.env.BUCKET_KEY || '';
+const OUTPUT_BUCKET_KEY = process.env.OUTPUT_BUCKET_KEY || '';
 const s3Client = new S3Client();
 
 /**
@@ -19,7 +19,7 @@ export const handler = async (event: any = {}): Promise<any> => {
 
     //S3 getObject param
     const params: GetObjectCommandInput = {
-        Bucket: BUCKET_KEY,
+        Bucket: OUTPUT_BUCKET_KEY,
         Key: `${requestedSessionId}/output.json`, //replace the output file name.
     }
     try{

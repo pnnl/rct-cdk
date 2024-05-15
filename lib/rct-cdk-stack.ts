@@ -1,4 +1,4 @@
-import { Duration, Stack, StackProps } from "aws-cdk-lib";
+import { Duration, Stack, StackProps, Fn } from "aws-cdk-lib";
 import { SubnetType, Vpc } from "aws-cdk-lib/aws-ec2";
 import { Construct } from "constructs";
 import { Table } from "aws-cdk-lib/aws-dynamodb";
@@ -27,10 +27,19 @@ export class RctCdkStack extends Stack {
     const { applicationName, deploymentEnv } = props;
 
     // get the bucket
-    const bucket = Bucket.fromBucketName(
+    const inputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-input-bucket-export`);
+    const outputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-output-bucket-export`);
+
+    const input_bucket = Bucket.fromBucketName(
       this,
-      `${applicationName}-${deploymentEnv}-bucket`,
-      `${applicationName}-${deploymentEnv}-bucket`
+      inputBucketName,
+      inputBucketName
+    );
+
+    const output_bucket = Bucket.fromBucketName(
+      this,
+      outputBucketName,
+      outputBucketName
     );
 
     // get the dynamo table
@@ -59,7 +68,8 @@ export class RctCdkStack extends Stack {
       environment: {
         PRIMARY_KEY: "sessionId",
         TABLE_NAME: sessionsTable.tableName,
-        BUCKET_KEY: `${applicationName}-${deploymentEnv}-bucket`,
+        INPUT_BUCKET_KEY: inputBucketName,
+        OUTPUT_BUCKET_KEY: outputBucketName,
         SUBNET_IDS: subnets.map((sub) => sub.subnetId).join(","),
       },
       runtime: Runtime.NODEJS_20_X,
@@ -109,8 +119,8 @@ export class RctCdkStack extends Stack {
     // grant permissions for lambda to read/write to DynamoDB table and bucket
     sessionsTable.grantReadWriteData(runRCTEvaluationLambda);
     sessionsTable.grantReadWriteData(trackRCTProgressLambda);
-    bucket.grantReadWrite(runRCTEvaluationLambda);
-    bucket.grantReadWrite(retrieveRCTEvaluationOutputLambda);
+    input_bucket.grantReadWrite(runRCTEvaluationLambda);
+    output_bucket.grantReadWrite(retrieveRCTEvaluationOutputLambda);
 
     // API gateway
     // 1. Integrate the lambda functions with API gateway resource
