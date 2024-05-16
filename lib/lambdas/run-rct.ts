@@ -33,7 +33,6 @@ export const handler = async (event: any = {}): Promise<any> => {
     }
 
     const sessionId = uuidv4();
-    const jobId = uuidv4();
 
     // Entry Fields
     // PK: Entry UUID
@@ -51,18 +50,15 @@ export const handler = async (event: any = {}): Promise<any> => {
     // Write to dynamo db
     const ruleset = event.queryStringParameters.ruleset;
     const reports = event.queryStringParameters.reports;
-    const fileKey = uuidv4();
-
     await db.put({
         TableName: TABLE_NAME,
         Item: {
             sessionId: sessionId,
-            jobId: jobId,
             type: 'Evaluation',
             dateCreated: new Date().toISOString(),
             dateUpdated: new Date().toISOString(),
             statusMessage: 'Preparing the evaluation',
-            inputPath: `${fileKey}.zip`,
+            inputPath: `s3://${INPUT_BUCKET_KEY}/${sessionId}.zip`,
             outputPath: '',
             errors: '',
             ruleset: ruleset,
@@ -75,7 +71,7 @@ export const handler = async (event: any = {}): Promise<any> => {
 
     const uploadParams: PutObjectCommandInput = {
         Bucket: INPUT_BUCKET_KEY,
-        Key: `${fileKey}.zip`,
+        Key: `${sessionId}.zip`,
         Body: fileData,
         ContentType: "application/zip",
     }

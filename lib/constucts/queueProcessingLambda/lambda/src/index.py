@@ -4,12 +4,17 @@ import zipfile
 import os
 from rct229.web_application import run_project_evaluation as run
 from rct229.utils.file import deserialize_rpd_file
-import uuid
+from botocore.exceptions import ClientError
+from datetime import datetime, timezone
 
 s3 = boto3.client('s3')
 
 inputBucket = os.environ['inputBucket']
 outputBucket = os.environ['outputBucket']
+region = 'us-west-2'
+table_name = 'rct-juan-dev-session'
+dynamodb = boto3.resource('dynamodb', region_name=region)
+table = dynamodb.Table(table_name)
 
 def handler(event, context):
     for message in event['Records']:
@@ -59,6 +64,46 @@ def validate_json(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
             'body': json.dumps(f"{baseline_rpd_path} is not a valid JSON file")
         }
 
+def updateItem(sessionId):
+
+    # Generate the current UTC time
+    current_time = datetime.now(timezone.utc)
+
+    # Format the time as an ISO 8601 string with milliseconds and a 'Z' to indicate UTC
+    timestamp = current_time.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+
+    # Define the key of the item to update
+    key = {
+        'sessionId':  sessionId
+    }
+
+    # Define the update expression, condition expression, and attribute values
+    update_expression = "SET #attr1 = :val1, #attr2 = :val2"
+    expression_attribute_names = {
+        '#attr1': 'dateUpdated',  # Replace with your attribute names
+        '#attr2': 'outputPath'
+    }
+    expression_attribute_values = {
+        ':val1': timestamp,  # Replace with your new values
+        ':val2': f"s3://{inputBucket}/{sessionId}/ashrae901_2019_detail_report.json"
+    }
+
+    # Perform the update
+    try:
+        response = table.update_item(
+            Key=key,
+            UpdateExpression=update_expression,
+            ExpressionAttributeNames=expression_attribute_names,
+            ExpressionAttributeValues=expression_attribute_values,
+            ReturnValues="UPDATED_NEW"  # Optionally return the updated values
+        )
+        print("Item updated successfully:", response)
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
+            print("Condition check failed:", e.response['Error']['Message'])
+        else:
+            print("Error updating item:", e.response['Error']['Message'])
+
 def process_message(message):
     try:
         print(f"Processed message {message['body']}")
@@ -74,7 +119,13 @@ def process_message(message):
         # print(f"Bucket: {bucket}")
         print(f"Key: {zip_key}")
 
-        unique_id4 = uuid.uuid4()
+        if not zip_key.endswith('.zip'):
+            return {
+                'statusCode': 500,
+                'body': json.dumps('File is not a zip.')
+            }
+
+        session_id = zip_key.replace(".zip", "")
 
         # Download zip file from S3
         s3.download_file(inputBucket, zip_key, f"/tmp/{zip_key}")
@@ -105,7 +156,9 @@ def process_message(message):
                 'body': json.dumps('Ashrae file does not exist!')
             }
         
-        s3.upload_file("/tmp/ashrae901_2019_detail_report.json", outputBucket, f"{unique_id4}/ashrae901_2019_detail_report.json")
+        s3.upload_file("/tmp/ashrae901_2019_detail_report.json", outputBucket, f"{session_id}/ashrae901_2019_detail_report.json")
+
+        updateItem(session_id)
 
         print('DONE!')
     except Exception as err:
