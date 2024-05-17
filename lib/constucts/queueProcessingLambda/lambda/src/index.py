@@ -11,6 +11,8 @@ s3 = boto3.client('s3')
 inputBucket = os.environ['inputBucket']
 outputBucket = os.environ['outputBucket']
 
+headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+
 def handler(event, context):
     for message in event['Records']:
         process_message(message)
@@ -21,16 +23,19 @@ def validate_json_exists(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
     if not os.path.exists(user_rpd_path):
         return {
             'statusCode': 400,
+            'headers': headers,
             'body': json.dumps('User RPD file does not exist!')
         }
     if not os.path.exists(proposed_rpd_path):
         return {
             'statusCode': 400,
+            'headers': headers,
             'body': json.dumps('Proposed RPD file does not exist!')
         }
     if not os.path.exists(baseline_rpd_path):
         return {
             'statusCode': 400,
+            'headers': headers,
             'body': json.dumps('Baseline RPD file does not exist!')
         }
     
@@ -40,6 +45,7 @@ def validate_json(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
     except:
         return {
             'statusCode': 400,
+            'headers': headers,
             'body': json.dumps(f"{user_rpd_path} is not a valid JSON file")
         }
 
@@ -48,6 +54,7 @@ def validate_json(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
     except:
         return {
             'statusCode': 400,
+            'headers': headers,
             'body': json.dumps(f"{proposed_rpd_path} is not a valid JSON file")
         }
         
@@ -56,6 +63,7 @@ def validate_json(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
     except:
         return {
             'statusCode': 400,
+            'headers': headers,
             'body': json.dumps(f"{baseline_rpd_path} is not a valid JSON file")
         }
 
@@ -102,6 +110,7 @@ def process_message(message):
         if not os.path.exists(f"/tmp/ashrae901_2019_detail_report.json"):
             return {
                 'statusCode': 400,
+                'headers': headers,
                 'body': json.dumps('Ashrae file does not exist!')
             }
         
