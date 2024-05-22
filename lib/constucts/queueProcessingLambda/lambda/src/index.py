@@ -10,6 +10,7 @@ s3 = boto3.client('s3')
 
 inputBucket = os.environ['inputBucket']
 outputBucket = os.environ['outputBucket']
+dynamoDb = os.environ['dynamoDb']
 
 def handler(event, context):
     for message in event['Records']:
@@ -74,7 +75,13 @@ def process_message(message):
         # print(f"Bucket: {bucket}")
         print(f"Key: {zip_key}")
 
-        unique_id4 = uuid.uuid4()
+        if not zip_key.endswith('.zip'):
+            return {
+                'statusCode': 500,
+                'body': json.dumps('File is not a zip.')
+            }
+
+        session_id = zip_key.replace(".zip", "")
 
         # Download zip file from S3
         s3.download_file(inputBucket, zip_key, f"/tmp/{zip_key}")
@@ -99,13 +106,31 @@ def process_message(message):
 
         run([user_rpd, proposed_rpd, baseline_rpd], "ashrae9012019", ["ASHRAE9012019DetailReport"], saving_dir="/tmp")
 
-        if not os.path.exists(f"/tmp/ashrae901_2019_detail_report.json"):
+        excluded_paths = [
+            user_rpd_path,
+            proposed_rpd_path,
+            baseline_rpd_path
+        ]
+
+        report_files = []
+        for root, _, files in os.walk('/tmp'):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if file_path not in excluded_paths:
+                    report_files.append(file_path)
+
+        if not report_files:
             return {
                 'statusCode': 400,
                 'body': json.dumps('Ashrae file does not exist!')
             }
+
+        zip_path = "tmp/reports.zip"
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for file_path in report_files:
+                zipf.write(file_path, os.path.relpath(file_path, '/tmp'))
         
-        s3.upload_file("/tmp/ashrae901_2019_detail_report.json", outputBucket, f"{unique_id4}/ashrae901_2019_detail_report.json")
+        s3.upload_file("/tmp/reports.zip", outputBucket, f"{session_id}/reports.zip")
 
         print('DONE!')
     except Exception as err:

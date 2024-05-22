@@ -1,5 +1,6 @@
 import { Duration, Fn } from 'aws-cdk-lib';
 import { Bucket, EventType } from 'aws-cdk-lib/aws-s3';
+import { Table } from "aws-cdk-lib/aws-dynamodb";
 import { Queue } from 'aws-cdk-lib/aws-sqs';
 import { Function, Runtime, Code, Handler } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
@@ -43,7 +44,8 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
         memorySize: 1024,
         environment: {
             inputBucket: inputBucket.bucketName,
-            outputBucket: outputBucket.bucketName
+            outputBucket: outputBucket.bucketName,
+            dynamoDb: `${applicationName}-${deploymentEnv}-session`,
         }
     });
 
@@ -58,6 +60,8 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
     });
     inputBucket.grantRead(lambdaFunction);
     outputBucket.grantWrite(lambdaFunction);
+
+    // sessionsTable.grantReadWriteData(lambdaFunction);
 
     // Grant the Lambda function permissions to read from the queue
     queue.grantConsumeMessages(lambdaFunction);

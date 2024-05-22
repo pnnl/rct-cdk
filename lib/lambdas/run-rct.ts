@@ -6,6 +6,7 @@ const {v4: uuidv4} = require('uuid');
 
 const TABLE_NAME = process.env.TABLE_NAME || '';
 const INPUT_BUCKET_KEY = process.env.INPUT_BUCKET_KEY || '';
+const OUTPUT_BUCKET_KEY = process.env.INPUT_BUCKET_KEY || '';
 
 const s3Client = new S3Client();
 
@@ -51,7 +52,6 @@ export const handler = async (event: any = {}): Promise<any> => {
     // Write to dynamo db
     const ruleset = event.queryStringParameters.ruleset;
     const reports = event.queryStringParameters.reports;
-    const fileKey = uuidv4();
 
     await db.put({
         TableName: TABLE_NAME,
@@ -62,8 +62,8 @@ export const handler = async (event: any = {}): Promise<any> => {
             dateCreated: new Date().toISOString(),
             dateUpdated: new Date().toISOString(),
             statusMessage: 'Preparing the evaluation',
-            inputPath: `${fileKey}.zip`,
-            outputPath: '',
+            inputPath: `s3://${INPUT_BUCKET_KEY}/${sessionId}.zip`,
+            outputPath: `s3://${OUTPUT_BUCKET_KEY}/${sessionId}.zip`,
             errors: '',
             ruleset: ruleset,
             reports: reports
@@ -75,7 +75,7 @@ export const handler = async (event: any = {}): Promise<any> => {
 
     const uploadParams: PutObjectCommandInput = {
         Bucket: INPUT_BUCKET_KEY,
-        Key: `${fileKey}.zip`,
+        Key: `${sessionId}.zip`,
         Body: fileData,
         ContentType: "application/zip",
     }
