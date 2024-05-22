@@ -2,6 +2,7 @@ from rct229.web_application import get_available_reports_by_ruleset as get_repor
 from rct229.utils.assertions import RCTFailureException
 import json
 
+headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
 
 def handler(event, context):
     ruleset = event.get('queryStringParameters', {}).get('ruleset', None)
@@ -9,6 +10,7 @@ def handler(event, context):
     if ruleset is None:
         return {
             'statusCode': 400,
+            'headers': headers,
             'body': json.dumps({'message': 'Invalid request, missing ruleset.'})
         }
     
@@ -17,10 +19,18 @@ def handler(event, context):
     except RCTFailureException as e:
         return {
             'statusCode': 500,
-            'body': json.dumps({'message':e})
+            'headers': headers,
+            'body': json.dumps({'message': str(e)})
         }
+    except Exception:
+        return {
+            'statusCode': 500,
+            'headers': headers,
+            'body': json.dumps({'message': "Internal Error"})
+        } 
 
     return {
         'statusCode': 200,
+        'headers': headers,
         'body': json.dumps({'num_reports': len(ruleset_reports), 'reports': ruleset_reports})
     }
