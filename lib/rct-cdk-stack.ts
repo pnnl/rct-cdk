@@ -145,6 +145,7 @@ export class RctCdkStack extends Stack {
     // Create an API Gateway resource for each of the CRUD operations
     const api = new RestApi(this, "rct", {
       restApiName: "Ruleset Checking Tool Service",
+      // In case you want to manage binary types, uncomment the following
       binaryMediaTypes: ["application/octet-stream", "application/zip"],
     });
 
