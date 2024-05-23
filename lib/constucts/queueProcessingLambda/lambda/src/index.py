@@ -91,11 +91,13 @@ def process_message(message):
 
         session_id = zip_key.replace(".zip", "")
 
+        zip_path = f"/tmp/{zip_key}"
+
         # Download zip file from S3
-        s3.download_file(inputBucket, zip_key, f"/tmp/{zip_key}")
+        s3.download_file(inputBucket, zip_key, zip_path)
 
         # Unzip the file
-        with zipfile.ZipFile(f"/tmp/{zip_key}", 'r') as zip_ref:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall('/tmp/')
 
         # Define file paths
@@ -117,7 +119,8 @@ def process_message(message):
         excluded_paths = [
             user_rpd_path,
             proposed_rpd_path,
-            baseline_rpd_path
+            baseline_rpd_path,
+            zip_path
         ]
 
         report_files = []
@@ -134,12 +137,11 @@ def process_message(message):
                 'body': json.dumps('Ashrae file does not exist!')
             }
 
-        zip_path = "tmp/reports.zip"
         with zipfile.ZipFile(zip_path, 'w') as zipf:
             for file_path in report_files:
                 zipf.write(file_path, os.path.relpath(file_path, '/tmp'))
         
-        s3.upload_file("/tmp/reports.zip", outputBucket, f"{session_id}/reports.zip")
+        s3.upload_file(zip_path, outputBucket, f"{session_id}.zip")
 
         print('DONE!')
     except Exception as err:
