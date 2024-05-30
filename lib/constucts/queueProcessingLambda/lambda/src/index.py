@@ -5,14 +5,14 @@ import os
 from rct229.web_application import run_project_evaluation as run
 from rct229.utils.file import deserialize_rpd_file
 from botocore.exceptions import ClientError
-from datetime import datetime, timezone
+from datetime import datetime
 
 s3 = boto3.client('s3')
 
 inputBucket = os.environ['inputBucket']
 outputBucket = os.environ['outputBucket']
-region = 'us-west-2'
-table_name = 'rct-juan-dev-session'
+region = os.environ['region']
+table_name = os.environ['tableName']
 dynamodb = boto3.resource('dynamodb', region_name=region)
 table = dynamodb.Table(table_name)
 
@@ -72,45 +72,25 @@ def validate_json(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
             'body': json.dumps(f"{baseline_rpd_path} is not a valid JSON file")
         }
 
-def updateItem(sessionId):
-
-    # Generate the current UTC time
-    current_time = datetime.now(timezone.utc)
-
-    # Format the time as an ISO 8601 string with milliseconds and a 'Z' to indicate UTC
-    timestamp = current_time.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-
-    # Define the key of the item to update
-    key = {
-        'sessionId':  sessionId
-    }
-
-    # Define the update expression, condition expression, and attribute values
-    update_expression = "SET #attr1 = :val1, #attr2 = :val2"
-    expression_attribute_names = {
-        '#attr1': 'dateUpdated',  # Replace with your attribute names
-        '#attr2': 'outputPath'
-    }
-    expression_attribute_values = {
-        ':val1': timestamp,  # Replace with your new values
-        ':val2': f"s3://{inputBucket}/{sessionId}/ashrae901_2019_detail_report.json"
-    }
-
-    # Perform the update
+def update_item(session_id):
+    new_output_path = f"s3://{inputBucket}/{session_id}/ASHRAE9012019DetailReport.json"
+    new_date_updated = datetime.now().isoformat()
+    
     try:
+        # Update the item in the DynamoDB table
         response = table.update_item(
-            Key=key,
-            UpdateExpression=update_expression,
-            ExpressionAttributeNames=expression_attribute_names,
-            ExpressionAttributeValues=expression_attribute_values,
-            ReturnValues="UPDATED_NEW"  # Optionally return the updated values
+            Key={'sessionId': session_id},
+            UpdateExpression='SET dateUpdated = :d, outputPath = :o',
+            ExpressionAttributeValues={
+                ':d': new_date_updated,
+                ':o': new_output_path
+            },
+            ReturnValues="UPDATED_NEW"
         )
-        print("Item updated successfully:", response)
+        return response
     except ClientError as e:
-        if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
-            print("Condition check failed:", e.response['Error']['Message'])
-        else:
-            print("Error updating item:", e.response['Error']['Message'])
+        print(f"Error updating item: {e.response['Error']['Message']}")
+        return None
 
 def process_message(message):
     try:
@@ -135,6 +115,8 @@ def process_message(message):
 
         session_id = zip_key.replace(".zip", "")
 
+        print(f"SessionID: {session_id}")
+
         # Download zip file from S3
         s3.download_file(inputBucket, zip_key, f"/tmp/{zip_key}")
 
@@ -156,18 +138,23 @@ def process_message(message):
         proposed_rpd = deserialize_rpd_file(proposed_rpd_path)
         baseline_rpd = deserialize_rpd_file(baseline_rpd_path)
 
-        run([user_rpd, proposed_rpd, baseline_rpd], "ashrae9012019", ["ASHRAE9012019DetailReport"], saving_dir="/tmp")
+        #TODO: Search DB to get report and ruleset
+        run([user_rpd, proposed_rpd, baseline_rpd], "ashrae9012019", ["ASHRAE9012019DetailReport"], saving_dir="/tmp", session_id=session_id)
 
-        if not os.path.exists(f"/tmp/ashrae901_2019_detail_report.json"):
+        print(os.listdir('/tmp'))
+
+        if not os.path.exists(f"/tmp/ASHRAE9012019DetailReport.json"):
+            print("File does not exist!")
             return {
                 'statusCode': 400,
                 'headers': headers,
                 'body': json.dumps('Ashrae file does not exist!')
             }
         
-        s3.upload_file("/tmp/ashrae901_2019_detail_report.json", outputBucket, f"{session_id}/ashrae901_2019_detail_report.json")
+        s3.upload_file("/tmp/ASHRAE9012019DetailReport.json", outputBucket, f"{session_id}/ASHRAE9012019DetailReport.json")
 
-        updateItem(session_id)
+        print("Updating database now that the simulation is done.")
+        update_item(session_id)
 
         print('DONE!')
     except Exception as err:
