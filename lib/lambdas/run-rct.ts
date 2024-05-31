@@ -1,6 +1,7 @@
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { S3Client, PutObjectCommand, PutObjectCommandInput } from '@aws-sdk/client-s3';
+import { Status } from '../status';
 const {v4: uuidv4} = require('uuid');
 
 
@@ -79,6 +80,7 @@ export const handler = async (event: any = {}): Promise<any> => {
             dateCreated: new Date().toISOString(),
             dateUpdated: new Date().toISOString(),
             statusMessage: 'Preparing the evaluation',
+            status: Status.EVALUATING,
             inputPath: `s3://${INPUT_BUCKET_KEY}/${sessionId}.zip`,
             outputPath: `s3://${OUTPUT_BUCKET_KEY}/${sessionId}.zip`,
             errors: '',
