@@ -22,15 +22,32 @@ const db = DynamoDBDocument.from(new DynamoDB())
  */
 export const handler = async (event: any = {}): Promise<any> => {
     if(!event || !event.body) {
-        return {statusCode: 400, body: 'invalid request, missing requested zip file'};
+        return {statusCode: 400, 
+            headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({message: 'invalid request, missing requested zip file'})};
     }
 
     if(!event.queryStringParameters?.ruleset) {
-        return {statusCode: 400, body: 'invalid request, missing ruleset.'};
+        return {
+            statusCode: 400, 
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({message:'invalid request, missing ruleset.'})};
     }
 
     if(!event.queryStringParameters?.reports) {
-        return {statusCode: 400, body: 'invalid request, missing reports.'};
+        return {
+            statusCode: 400,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({message:'invalid request, missing reports.'})};
     }
 
     const sessionId = uuidv4();
@@ -85,6 +102,10 @@ export const handler = async (event: any = {}): Promise<any> => {
     // Return session id
     return {
         statusCode: 200,
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        }, 
         body: JSON.stringify({
             sessionId: sessionId,
         })

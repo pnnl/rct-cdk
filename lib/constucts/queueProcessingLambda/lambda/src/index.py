@@ -19,54 +19,28 @@ def handler(event, context):
         process_message(message)
     print("done")
 
-def validate_json_exists(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
+def validate_json_exists(rpd_paths: list):
     # Check if files exist
-    if not os.path.exists(user_rpd_path):
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps('User RPD file does not exist!')
-        }
-    if not os.path.exists(proposed_rpd_path):
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps('Proposed RPD file does not exist!')
-        }
-    if not os.path.exists(baseline_rpd_path):
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps('Baseline RPD file does not exist!')
+    for rpd_path in rpd_paths:
+        if not os.path.exists(rpd_path):
+            filename = rpd_path.replace("/tmp/", "", 1)
+            return {
+                'statusCode': 400,
+                'headers': headers,
+                'body': json.dumps({"message": f"{filename} does not exist!"})
         }
     
-def validate_json(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
-    try:
-        deserialize_rpd_file(user_rpd_path)
-    except:
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps(f"{user_rpd_path} is not a valid JSON file")
-        }
-
-    try:
-        deserialize_rpd_file(proposed_rpd_path)
-    except:
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps(f"{proposed_rpd_path} is not a valid JSON file")
-        }
-        
-    try:
-        deserialize_rpd_file(baseline_rpd_path)
-    except:
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps(f"{baseline_rpd_path} is not a valid JSON file")
-        }
+def validate_json(rpd_paths: list):
+    for rpd_path in rpd_paths:
+        try:
+            deserialize_rpd_file(rpd_path)
+        except:
+            filename = rpd_path.replace("/tmp/", "", 1)
+            return {
+                'statusCode': 400,
+                'headers': headers,
+                'body': json.dumps(f"{filename} is not a valid JSON file")
+            }
 
 def process_message(message):
     try:
@@ -105,9 +79,9 @@ def process_message(message):
         proposed_rpd_path = "/tmp/proposed_model.json"
         baseline_rpd_path = "/tmp/baseline_model.json"
 
-        validate_json_exists(user_rpd_path, proposed_rpd_path, baseline_rpd_path)
+        validate_json_exists([user_rpd_path, proposed_rpd_path, baseline_rpd_path])
 
-        validate_json(user_rpd_path, proposed_rpd_path, baseline_rpd_path)
+        validate_json([user_rpd_path, proposed_rpd_path, baseline_rpd_path])
 
         # Deserialize rpd files
         user_rpd = deserialize_rpd_file(user_rpd_path)
@@ -134,7 +108,7 @@ def process_message(message):
             return {
                 'statusCode': 400,
                 'headers': headers,
-                'body': json.dumps('Ashrae file does not exist!')
+                'body': json.dumps({"message": "Ashrae file does not exist!"})
             }
 
         with zipfile.ZipFile(zip_path, 'w') as zipf:

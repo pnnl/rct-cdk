@@ -14,7 +14,16 @@ export const handler = async (event: any = {}): Promise<any> => {
     const requestedSessionId = event.pathParameters.id;
 
     if (!requestedSessionId) {
-        return { statusCode: 400, body: `Error: You are missing the path parameter id` };
+        return { 
+            statusCode: 400, 
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({
+                message: "Error: The request is missing the session ID"
+            }) 
+        };
     }
 
     //S3 getObject param
