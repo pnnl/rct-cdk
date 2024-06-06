@@ -1,5 +1,6 @@
 import { Duration, Fn, RemovalPolicy } from 'aws-cdk-lib';
 import { Bucket, EventType } from 'aws-cdk-lib/aws-s3';
+import { Table } from "aws-cdk-lib/aws-dynamodb";
 import { Queue } from 'aws-cdk-lib/aws-sqs';
 import { Function, Runtime, Code, Handler } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
@@ -10,7 +11,6 @@ import { FilterPattern, LogGroup, SubscriptionFilter } from 'aws-cdk-lib/aws-log
 import { LambdaDestination } from 'aws-cdk-lib/aws-logs-destinations';
 import { ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
-import { Table } from 'aws-cdk-lib/aws-dynamodb';
 
 interface QueueProcessingLambdaProps {
     applicationName: string
@@ -105,6 +105,8 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
     });
     inputBucket.grantRead(lambdaFunctionCheck);
     outputBucket.grantWrite(lambdaFunctionCheck);
+
+    // sessionsTable.grantReadWriteData(lambdaFunction);
 
     // Grant the Lambda function permissions to read from the queue
     queue.grantConsumeMessages(lambdaFunctionCheck);

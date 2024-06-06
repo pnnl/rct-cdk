@@ -1,11 +1,13 @@
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { S3Client, PutObjectCommand, PutObjectCommandInput } from '@aws-sdk/client-s3';
+import { Status } from '../status';
 const {v4: uuidv4} = require('uuid');
 
 
 const TABLE_NAME = process.env.TABLE_NAME || '';
 const INPUT_BUCKET_KEY = process.env.INPUT_BUCKET_KEY || '';
+const OUTPUT_BUCKET_KEY = process.env.INPUT_BUCKET_KEY || '';
 
 const s3Client = new S3Client();
 
@@ -21,35 +23,40 @@ const db = DynamoDBDocument.from(new DynamoDB())
  */
 export const handler = async (event: any = {}): Promise<any> => {
     if(!event || !event.body) {
-        return {statusCode: 400, body: 'invalid request, missing requested zip file'};
+        return {statusCode: 400, 
+            headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({message: 'invalid request, missing requested zip file'})};
     }
 
     if(!event.queryStringParameters?.ruleset) {
-        return {statusCode: 400, body: 'invalid request, missing ruleset.'};
+        return {
+            statusCode: 400, 
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({message:'invalid request, missing ruleset.'})};
     }
 
     if(!event.queryStringParameters?.reports) {
-        return {statusCode: 400, body: 'invalid request, missing reports.'};
+        return {
+            statusCode: 400,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({message:'invalid request, missing reports.'})};
     }
 
     const sessionId = uuidv4();
 
-    // Entry Fields
-    // PK: Entry UUID
-    // SK: Datetime?
-    // Entry ID
-    // Date Created
-    // Date Updated
-    // Status
-    // Input Path
-    // Output path
-    // Errors field
-    // Ruleset
-    // Reports
-
     // Write to dynamo db
     const ruleset = event.queryStringParameters.ruleset;
     const reportsQueryParam = event.queryStringParameters.reports;
+    
     // Parse the reports string into a list
     let reports: string[];
     try {
@@ -71,6 +78,7 @@ export const handler = async (event: any = {}): Promise<any> => {
             dateCreated: new Date().toISOString(),
             dateUpdated: new Date().toISOString(),
             statusMessage: 'Preparing the evaluation',
+            status: Status.EVALUATING,
             inputPath: `s3://${INPUT_BUCKET_KEY}/${sessionId}.zip`,
             outputPath: '',
             errors: '',
@@ -94,6 +102,10 @@ export const handler = async (event: any = {}): Promise<any> => {
     // Return session id
     return {
         statusCode: 200,
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        }, 
         body: JSON.stringify({
             sessionId: sessionId,
         })
