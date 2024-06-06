@@ -10,6 +10,7 @@ s3 = boto3.client('s3')
 
 inputBucket = os.environ['inputBucket']
 outputBucket = os.environ['outputBucket']
+dynamoDb = os.environ['dynamoDb']
 
 headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
 
@@ -18,54 +19,28 @@ def handler(event, context):
         process_message(message)
     print("done")
 
-def validate_json_exists(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
+def validate_json_exists(rpd_paths: list):
     # Check if files exist
-    if not os.path.exists(user_rpd_path):
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps('User RPD file does not exist!')
-        }
-    if not os.path.exists(proposed_rpd_path):
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps('Proposed RPD file does not exist!')
-        }
-    if not os.path.exists(baseline_rpd_path):
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps('Baseline RPD file does not exist!')
+    for rpd_path in rpd_paths:
+        if not os.path.exists(rpd_path):
+            filename = rpd_path.replace("/tmp/", "", 1)
+            return {
+                'statusCode': 400,
+                'headers': headers,
+                'body': json.dumps({"message": f"{filename} does not exist!"})
         }
     
-def validate_json(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
-    try:
-        deserialize_rpd_file(user_rpd_path)
-    except:
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps(f"{user_rpd_path} is not a valid JSON file")
-        }
-
-    try:
-        deserialize_rpd_file(proposed_rpd_path)
-    except:
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps(f"{proposed_rpd_path} is not a valid JSON file")
-        }
-        
-    try:
-        deserialize_rpd_file(baseline_rpd_path)
-    except:
-        return {
-            'statusCode': 400,
-            'headers': headers,
-            'body': json.dumps(f"{baseline_rpd_path} is not a valid JSON file")
-        }
+def validate_json(rpd_paths: list):
+    for rpd_path in rpd_paths:
+        try:
+            deserialize_rpd_file(rpd_path)
+        except:
+            filename = rpd_path.replace("/tmp/", "", 1)
+            return {
+                'statusCode': 400,
+                'headers': headers,
+                'body': json.dumps(f"{filename} is not a valid JSON file")
+            }
 
 def process_message(message):
     try:
@@ -82,13 +57,21 @@ def process_message(message):
         # print(f"Bucket: {bucket}")
         print(f"Key: {zip_key}")
 
-        unique_id4 = uuid.uuid4()
+        if not zip_key.endswith('.zip'):
+            return {
+                'statusCode': 500,
+                'body': json.dumps('File is not a zip.')
+            }
+
+        session_id = zip_key.replace(".zip", "")
+
+        zip_path = f"/tmp/{zip_key}"
 
         # Download zip file from S3
-        s3.download_file(inputBucket, zip_key, f"/tmp/{zip_key}")
+        s3.download_file(inputBucket, zip_key, zip_path)
 
         # Unzip the file
-        with zipfile.ZipFile(f"/tmp/{zip_key}", 'r') as zip_ref:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall('/tmp/')
 
         # Define file paths
@@ -96,9 +79,9 @@ def process_message(message):
         proposed_rpd_path = "/tmp/proposed_model.json"
         baseline_rpd_path = "/tmp/baseline_model.json"
 
-        validate_json_exists(user_rpd_path, proposed_rpd_path, baseline_rpd_path)
+        validate_json_exists([user_rpd_path, proposed_rpd_path, baseline_rpd_path])
 
-        validate_json(user_rpd_path, proposed_rpd_path, baseline_rpd_path)
+        validate_json([user_rpd_path, proposed_rpd_path, baseline_rpd_path])
 
         # Deserialize rpd files
         user_rpd = deserialize_rpd_file(user_rpd_path)
@@ -107,14 +90,32 @@ def process_message(message):
 
         run([user_rpd, proposed_rpd, baseline_rpd], "ashrae9012019", ["ASHRAE9012019DetailReport"], saving_dir="/tmp")
 
-        if not os.path.exists(f"/tmp/ashrae901_2019_detail_report.json"):
+        excluded_paths = [
+            user_rpd_path,
+            proposed_rpd_path,
+            baseline_rpd_path,
+            zip_path
+        ]
+
+        report_files = []
+        for root, _, files in os.walk('/tmp'):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if file_path not in excluded_paths:
+                    report_files.append(file_path)
+
+        if not report_files:
             return {
                 'statusCode': 400,
                 'headers': headers,
-                'body': json.dumps('Ashrae file does not exist!')
+                'body': json.dumps({"message": "Ashrae file does not exist!"})
             }
+
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for file_path in report_files:
+                zipf.write(file_path, os.path.relpath(file_path, '/tmp'))
         
-        s3.upload_file("/tmp/ashrae901_2019_detail_report.json", outputBucket, f"{unique_id4}/ashrae901_2019_detail_report.json")
+        s3.upload_file(zip_path, outputBucket, f"{session_id}.zip")
 
         print('DONE!')
     except Exception as err:

@@ -15,7 +15,13 @@ export const handler = async (event: any = {}): Promise<any> => {
     const requestedSessionId = event.pathParameters.id;
 
     if (!requestedSessionId) {
-        return { statusCode: 400, body: `Error: You are missing the path parameter id` };
+        return { 
+            statusCode: 400, 
+            headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({message: "Error: You are missing the session ID id"})};
     }
 
     const params = {
@@ -28,11 +34,28 @@ export const handler = async (event: any = {}): Promise<any> => {
    try  {
     const response = await db.get(params);
     if (response.Item) {
-        return {statusCode: 200, body: JSON.stringify(response.Item.statusMessage)};
+        return {
+            statusCode: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({message: response.Item.statusMessage})};
     } else {
-        return {statusCode: 404, body: `Error: Invalid id - no such record`};
+        return {
+            statusCode: 404,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({message: `Error: Invalid id - no such record`})};
     }
    } catch (dbError) {
-    return {statusCode: 500, body: JSON.stringify(dbError)};
+    return {statusCode: 500, 
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({message: dbError})};
    }
 }
