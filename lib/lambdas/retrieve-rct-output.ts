@@ -1,6 +1,6 @@
 
 import {S3Client, GetObjectCommand, GetObjectCommandInput} from '@aws-sdk/client-s3'
-import { Readable } from 'stream';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const OUTPUT_BUCKET_KEY = process.env.OUTPUT_BUCKET_KEY || '';
 const s3Client = new S3Client();
@@ -14,40 +14,48 @@ export const handler = async (event: any = {}): Promise<any> => {
     const requestedSessionId = event.pathParameters.id;
 
     if (!requestedSessionId) {
-        return { statusCode: 400, body: `Error: You are missing the path parameter id` };
+        return { 
+            statusCode: 400, 
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }, 
+            body: JSON.stringify({
+                message: "Error: The request is missing the session ID"
+            }) 
+        };
     }
 
     //S3 getObject param
     const params: GetObjectCommandInput = {
         Bucket: OUTPUT_BUCKET_KEY,
-        Key: `${requestedSessionId}/output.json`, //replace the output file name.
+        Key: `${requestedSessionId}.zip`, //replace the output file name.
     }
-    try{
 
-        // Get the output JSON file from S3
-        const { Body } = await s3Client.send(new GetObjectCommand(params));
-        if(!Body) {
-            return {
-                statusCode: 404,
-                body: JSON.stringify({error: 'Output summary file not found'})
-            }
-        }
+    const command = new GetObjectCommand(params);
 
-        // Convert the stream to a string
-        const outputJsonStream = Body as Readable
-        let outputJson = '';
+    let signedUrl;
 
-        for await (const chunk of outputJsonStream) {
-            outputJson += chunk;
-        }
-        return {
-            statusCode: 200,
-            body: outputJson
-        } 
-    } catch (s3Error) {
-        return {
-            statusCode: 500,
-            body: JSON.stringify(s3Error)
-        }
-    }
+    try {
+        signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // URL valid for 1 hour
+    } catch (error) {
+      console.error('Error generating presigned URL:', error);
+      return {
+        statusCode: 404, 
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        }, 
+        body: JSON.stringify({message: 'Output summary file not found'})};
+    }; 
+    
+
+    return {
+        statusCode: 200,
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        }, 
+        body: JSON.stringify({ url: signedUrl }),
+    };
 }
