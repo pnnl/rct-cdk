@@ -75,6 +75,8 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
             environment: {
                 inputBucket: inputBucket.bucketName,
                 outputBucket: outputBucket.bucketName,
+                region: 'us-west-2',
+                tableName: `${applicationName}-${deploymentEnv}-session`,
             },
             runtime: Runtime.NODEJS_20_X,
             timeout: Duration.minutes(15),

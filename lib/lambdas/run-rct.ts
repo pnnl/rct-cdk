@@ -49,7 +49,20 @@ export const handler = async (event: any = {}): Promise<any> => {
 
     // Write to dynamo db
     const ruleset = event.queryStringParameters.ruleset;
-    const reports = event.queryStringParameters.reports;
+    const reportsQueryParam = event.queryStringParameters.reports;
+    // Parse the reports string into a list
+    let reports: string[];
+    try {
+        reports = JSON.parse(reportsQueryParam);
+        if (!Array.isArray(reports)) {
+            throw new Error('Reports should be a list');
+        }
+    } catch (e) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ message: `Invalid JSON format for reports: ${e.message}` }),
+        };
+    }
     await db.put({
         TableName: TABLE_NAME,
         Item: {

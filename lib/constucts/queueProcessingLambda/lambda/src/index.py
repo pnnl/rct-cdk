@@ -4,6 +4,7 @@ import zipfile
 import os
 from rct229.web_application import run_project_evaluation as run
 from rct229.utils.file import deserialize_rpd_file
+from rct229.utils.assertions import assert_
 from botocore.exceptions import ClientError
 from datetime import datetime
 
@@ -22,6 +23,30 @@ def handler(event, context):
     for message in event['Records']:
         process_message(message)
     print("done")
+
+def get_report_and_ruleset(session_id):
+    try:
+        # Fetch the item from DynamoDB based on sessionId
+        response = table.get_item(Key={'sessionId': session_id})
+        item = response.get('Item')
+
+        if not item:
+            print('SessionId not found')
+
+        # Extract reports and ruleset attributes
+        reports = item.get('reports')
+        ruleset = item.get('ruleset')
+
+        # Prepare the response
+        result = {
+            'reports': reports,
+            'ruleset': ruleset
+        }
+
+        return result
+
+    except ClientError as e:
+        print(f"Error fetching item from DynamoDB: {e.response['Error']['Message']}")
 
 def validate_json_exists(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
     # Check if files exist
@@ -73,17 +98,19 @@ def validate_json(user_rpd_path, proposed_rpd_path, baseline_rpd_path):
         }
 
 def update_item(session_id):
-    new_output_path = f"s3://{inputBucket}/{session_id}/ASHRAE9012019DetailReport.json"
+    new_status_message = "Evaluation complete"
     new_date_updated = datetime.now().isoformat()
+    output_path = f"s3://{outputBucket}/{session_id}.zip"
     
     try:
         # Update the item in the DynamoDB table
         response = table.update_item(
             Key={'sessionId': session_id},
-            UpdateExpression='SET dateUpdated = :d, outputPath = :o',
+            UpdateExpression='SET dateUpdated = :d, statusMessage = :o, outputPath = :s',
             ExpressionAttributeValues={
                 ':d': new_date_updated,
-                ':o': new_output_path
+                ':o': new_status_message,
+                ':s': output_path
             },
             ReturnValues="UPDATED_NEW"
         )
@@ -104,9 +131,6 @@ def process_message(message):
         # bucket = dict_data['Records'][0]['s3']['bucket']['name']
         zip_key = dict_data['Records'][0]['s3']['object']['key']
 
-        # print(f"Bucket: {bucket}")
-        print(f"Key: {zip_key}")
-
         if not zip_key.endswith('.zip'):
             return {
                 'statusCode': 500,
@@ -115,13 +139,13 @@ def process_message(message):
 
         session_id = zip_key.replace(".zip", "")
 
-        print(f"SessionID: {session_id}")
+        zip_path = f"/tmp/{zip_key}"
 
         # Download zip file from S3
-        s3.download_file(inputBucket, zip_key, f"/tmp/{zip_key}")
+        s3.download_file(inputBucket, zip_key, zip_path)
 
         # Unzip the file
-        with zipfile.ZipFile(f"/tmp/{zip_key}", 'r') as zip_ref:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall('/tmp/')
 
         # Define file paths
@@ -138,21 +162,45 @@ def process_message(message):
         proposed_rpd = deserialize_rpd_file(proposed_rpd_path)
         baseline_rpd = deserialize_rpd_file(baseline_rpd_path)
 
-        #TODO: Search DB to get report and ruleset
-        run([user_rpd, proposed_rpd, baseline_rpd], "ashrae9012019", ["ASHRAE9012019DetailReport"], saving_dir="/tmp", session_id=session_id)
+        result_and_ruleset = get_report_and_ruleset(session_id)
+        reports = result_and_ruleset.get('reports')
+        ruleset = result_and_ruleset.get('ruleset')
 
-        print(os.listdir('/tmp'))
+        print(f"Ruleset: {ruleset}")
+        print(f"Reports: {reports}")
+        print(f"Type of Ruleset: {type(ruleset)}")
+        print(f"Type of Reports: {type(reports)}")
 
-        if not os.path.exists(f"/tmp/ASHRAE9012019DetailReport.json"):
-            print("File does not exist!")
+        run([user_rpd, proposed_rpd, baseline_rpd], ruleset, reports, saving_dir="/tmp", session_id=session_id)
+
+        excluded_paths = [
+            user_rpd_path,
+            proposed_rpd_path,
+            baseline_rpd_path,
+            zip_path
+        ]
+
+        report_files = []
+        for root, _, files in os.walk('/tmp'):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if file_path not in excluded_paths:
+                    report_files.append(file_path)
+
+        if not report_files:
             return {
                 'statusCode': 400,
                 'headers': headers,
                 'body': json.dumps('Ashrae file does not exist!')
             }
-        
-        s3.upload_file("/tmp/ASHRAE9012019DetailReport.json", outputBucket, f"{session_id}/ASHRAE9012019DetailReport.json")
 
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for file_path in report_files:
+                zipf.write(file_path, os.path.relpath(file_path, '/tmp'))
+        
+        s3.upload_file(zip_path, outputBucket, f"{session_id}.zip")
+
+        # Remove once we have a log for 100% in the RCT tool
         print("Updating database now that the simulation is done.")
         update_item(session_id)
 
