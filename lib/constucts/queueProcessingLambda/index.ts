@@ -32,10 +32,14 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
 
     // Create an SQS queue
     const queue = new Queue(scope, `${applicationName}-${deploymentEnv}-queue`, {
-        visibilityTimeout: Duration.seconds(900),
+        // 30 seconds between retries
+        visibilityTimeout: Duration.seconds(30),
+        // TODO: Add lambda to handle failures
         deadLetterQueue: {
+            // Queue failed messages get sent to
             queue: dlqueue,
-            maxReceiveCount: 5
+            // Allow 3 retries
+            maxReceiveCount: 3
         }
     });
 

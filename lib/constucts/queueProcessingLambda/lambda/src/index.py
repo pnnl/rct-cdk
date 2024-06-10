@@ -7,6 +7,7 @@ from rct229.utils.file import deserialize_rpd_file
 from rct229.utils.assertions import assert_
 from botocore.exceptions import ClientError
 from datetime import datetime
+from enum import Enum
 
 s3 = boto3.client('s3')
 
@@ -17,12 +18,16 @@ table_name = os.environ['tableName']
 dynamodb = boto3.resource('dynamodb', region_name=region)
 table = dynamodb.Table(table_name)
 
+class STATUS(Enum):
+    EVALUATING = "EVALUATING"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+
 headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
 
 def handler(event, context):
     for message in event['Records']:
         process_message(message)
-    print("done")
 
 def get_report_and_ruleset(session_id):
     try:
@@ -71,20 +76,22 @@ def validate_json(rpd_paths: list):
                 'body': json.dumps(f"{filename} is not a valid JSON file")
             }
 
-def update_item(session_id):
-    new_status_message = "Evaluation complete"
+def log_failure(session_id, message):
+    new_status_message = message
     new_date_updated = datetime.now().isoformat()
-    output_path = f"s3://{outputBucket}/{session_id}.zip"
     
     try:
         # Update the item in the DynamoDB table
         response = table.update_item(
             Key={'sessionId': session_id},
-            UpdateExpression='SET dateUpdated = :d, statusMessage = :o, outputPath = :s',
+            UpdateExpression='SET dateUpdated = :d, #status = :s, statusMessage = :e',
             ExpressionAttributeValues={
                 ':d': new_date_updated,
-                ':o': new_status_message,
-                ':s': output_path
+                ':e': new_status_message,
+                ':s': STATUS.FAILURE
+            },
+            ExpressionAttributeNames={
+                '#status': 'status'
             },
             ReturnValues="UPDATED_NEW"
         )
@@ -140,11 +147,6 @@ def process_message(message):
         reports = result_and_ruleset.get('reports')
         ruleset = result_and_ruleset.get('ruleset')
 
-        print(f"Ruleset: {ruleset}")
-        print(f"Reports: {reports}")
-        print(f"Type of Ruleset: {type(ruleset)}")
-        print(f"Type of Reports: {type(reports)}")
-
         run([user_rpd, proposed_rpd, baseline_rpd], ruleset, reports, saving_dir="/tmp", session_id=session_id)
 
         excluded_paths = [
@@ -173,12 +175,16 @@ def process_message(message):
                 zipf.write(file_path, os.path.relpath(file_path, '/tmp'))
         
         s3.upload_file(zip_path, outputBucket, f"{session_id}.zip")
-
-        # Remove once we have a log for 100% in the RCT tool
-        print("Updating database now that the simulation is done.")
-        update_item(session_id)
-
-        print('DONE!')
     except Exception as err:
         print("An error occurred")
+        # Method 1: Using str() function
+        error_message = str(err)
+        # Capture Error
+        log_failure(session_id, error_message)
         raise err
+    
+    return {
+            'statusCode': 200,
+            'headers': headers,
+            'body': json.dumps({ "message": "Evaluation complete!"})
+        }

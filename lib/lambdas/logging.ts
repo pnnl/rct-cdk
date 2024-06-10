@@ -1,10 +1,12 @@
 const zlib = require('zlib');
 import { DynamoDBClient, UpdateItemCommand, ReturnValue } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
+import { Status } from "../status";
 
 const {
   region,
-  tableName
+  tableName,
+  outputBucket
 } = process.env;
 
 const client = new DynamoDBClient({ region: region });
@@ -13,14 +15,33 @@ const logProgress = async (sessionId: string, percentComplete: string) => {
     const newStatusMessage = percentComplete;
     const newDateUpdated = new Date().toISOString();
 
+    let expressionParams: any = {
+      UpdateExpression: "SET dateUpdated = :d, statusMessage = :o",
+      ExpressionAttributeValues: marshall({
+          ":d": newDateUpdated,
+          ":o": newStatusMessage
+      })
+    };
+
+    if (percentComplete.includes('100%')) {
+      expressionParams = {
+        UpdateExpression: "SET dateUpdated = :d, statusMessage = :o, #status = :e, outputPath = :s",
+        ExpressionAttributeValues: marshall({
+            ":d": newDateUpdated,
+            ":o": newStatusMessage,
+            ":e": Status.SUCCESS,
+            ":s": `s3://${outputBucket}/${sessionId}.zip`
+        }),
+        ExpressionAttributeNames: {
+          "#status": "status"
+        }
+      };
+    }
+
     const params = {
         TableName: tableName,
         Key: marshall({ sessionId }),
-        UpdateExpression: "SET dateUpdated = :d, statusMessage = :o",
-        ExpressionAttributeValues: marshall({
-            ":d": newDateUpdated,
-            ":o": newStatusMessage
-        }),
+        ...expressionParams,
         ReturnValues: ReturnValue.UPDATED_NEW
     };
 
@@ -28,8 +49,13 @@ const logProgress = async (sessionId: string, percentComplete: string) => {
         const command = new UpdateItemCommand(params);
         await client.send(command);
         console.log(`Updated status message for item with session id: ${sessionId}`);
-    } catch (error) {
+    } catch (error: any) {
         console.log(`Failed to update status for item with session id: ${sessionId}`);
+        if (error instanceof Error) {
+          console.error("Error message: ", error.message);
+      } else {
+          console.error("Unknown error: ", error);
+      }
     }
 }
 
