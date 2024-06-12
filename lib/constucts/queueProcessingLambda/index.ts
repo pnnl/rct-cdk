@@ -28,13 +28,15 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
     const outputBucket = Bucket.fromBucketName(scope, `${applicationName}-${deploymentEnv}-output-bucket`, outputBucketName);
 
     // Create an SQS dead letter queue
-    const dlqueue = new Queue(scope, `${applicationName}-${deploymentEnv}-dl-queue`, {});
+    const dlqueue = new Queue(scope, `${applicationName}-${deploymentEnv}-dl-queue`, {
+        retentionPeriod: Duration.days(14)
+    });
 
     // Create an SQS queue
     const queue = new Queue(scope, `${applicationName}-${deploymentEnv}-queue`, {
-        // 30 seconds between retries
-        visibilityTimeout: Duration.seconds(30),
-        // TODO: Add lambda to handle failures
+        visibilityTimeout: Duration.seconds(300),
+        receiveMessageWaitTime: Duration.seconds(20), // Long polling
+        retentionPeriod: Duration.days(4),
         deadLetterQueue: {
             // Queue failed messages get sent to
             queue: dlqueue,
@@ -100,7 +102,7 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
 
     // Attach the SQS event source to the Lambda function
     lambdaFunctionCheck.addEventSource(new SqsEventSource(queue, {
-        batchSize: 1, // Adjust based on your use case
+        batchSize: 1, // Process one message at a time
     }));
 
     // Configure the S3 bucket to send notifications to the SQS queue
