@@ -14,6 +14,7 @@ import { QueueProcessingLambda } from "./constucts/queueProcessingLambda";
 import { RuleSetCountLambda } from "./constucts/ruleSetCountLambda";
 import { RuleCountLambda } from "./constucts/ruleCountLambda";
 import { RuleSetReportCountLambda } from "./constucts/ruleSetAvailableReportsLambda";
+import { AnyPrincipal, Effect, PolicyDocument, PolicyStatement } from "aws-cdk-lib/aws-iam";
 
 export interface RCTStackProps extends StackProps {
   applicationName: string;
@@ -142,11 +143,27 @@ export class RctCdkStack extends Stack {
     const countNumRuleSetReportsIntegration = new LambdaIntegration(
       rulesetReportCountLambda
     );
+
+    const mainPolicy = new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["execute-api:Invoke"],
+        resources: ["execute-api:/prod/*"],
+        principals: [new AnyPrincipal()],
+        conditions: {
+            IpAddress: { "aws:SourceIp": ["130.20.0.0/16"] },
+        },
+    });
+
+    const mainPolicyDocument = new PolicyDocument({
+      statements: [mainPolicy],
+    });
+
     // Create an API Gateway resource for each of the CRUD operations
     const api = new RestApi(this, "rct", {
       restApiName: "Ruleset Checking Tool Service",
       // In case you want to manage binary types, uncomment the following
       binaryMediaTypes: ["application/octet-stream", "application/zip"],
+      policy: mainPolicyDocument,
     });
 
     const evaluate = api.root.addResource("evaluate");

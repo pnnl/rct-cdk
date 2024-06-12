@@ -52,37 +52,35 @@ export const handler = async (event: any = {}): Promise<any> => {
     }
 
     const sessionId = uuidv4();
-    const jobId = uuidv4();
-
-    // Entry Fields
-    // PK: Entry UUID
-    // SK: Datetime?
-    // Entry ID
-    // Date Created
-    // Date Updated
-    // Status
-    // Input Path
-    // Output path
-    // Errors field
-    // Ruleset
-    // Reports
 
     // Write to dynamo db
     const ruleset = event.queryStringParameters.ruleset;
-    const reports = event.queryStringParameters.reports;
-
+    const reportsQueryParam = event.queryStringParameters.reports;
+    
+    // Parse the reports string into a list
+    let reports: string[];
+    try {
+        reports = JSON.parse(reportsQueryParam);
+        if (!Array.isArray(reports)) {
+            throw new Error('Reports should be a list');
+        }
+    } catch (e) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ message: `Invalid JSON format for reports: ${e.message}` }),
+        };
+    }
     await db.put({
         TableName: TABLE_NAME,
         Item: {
             sessionId: sessionId,
-            jobId: jobId,
             type: 'Evaluation',
             dateCreated: new Date().toISOString(),
             dateUpdated: new Date().toISOString(),
             statusMessage: 'Preparing the evaluation',
             status: Status.EVALUATING,
             inputPath: `s3://${INPUT_BUCKET_KEY}/${sessionId}.zip`,
-            outputPath: `s3://${OUTPUT_BUCKET_KEY}/${sessionId}.zip`,
+            outputPath: '',
             errors: '',
             ruleset: ruleset,
             reports: reports

@@ -1,3 +1,3 @@
 boto3==1.34.101
-ruleset-checking-tool==0.2.5
+ruleset-checking-tool==0.2.8
 aws-solutions-constructs.aws-s3-sqs==2.57.0
