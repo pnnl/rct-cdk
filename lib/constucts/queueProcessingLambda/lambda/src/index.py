@@ -2,36 +2,85 @@ import json
 import boto3
 import zipfile
 import os
-from rct229.web_application import run_project_evaluation as run
+import logging
+from rct229.web_application import run_project_evaluation
 from rct229.utils.file import deserialize_rpd_file
-from rct229.utils.assertions import assert_
-from botocore.exceptions import ClientError
 from datetime import datetime
+from enum import Enum
 
-s3 = boto3.client('s3')
+# Initialize logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
-inputBucket = os.environ['inputBucket']
-outputBucket = os.environ['outputBucket']
-region = os.environ['region']
-table_name = os.environ['tableName']
-dynamodb = boto3.resource('dynamodb', region_name=region)
-table = dynamodb.Table(table_name)
+# Enum for status tracking
+class STATUS(Enum):
+    EVALUATING = "EVALUATING"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
 
-headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+# Headers for the HTTP response
+HEADERS = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
 
+# Function to initialize AWS resources
+def init_aws_resources():
+    # Retrieve environment variables
+    input_bucket = os.environ['inputBucket']
+    output_bucket = os.environ['outputBucket']
+    region = os.environ['region']
+    table_name = os.environ['tableName']
+    # Initialize AWS S3 client
+    s3 = boto3.client('s3')
+    # Initialize AWS DynamoDB resource
+    dynamodb = boto3.resource('dynamodb', region_name=region)
+    # Get the DynamoDB table
+    table = dynamodb.Table(table_name)
+    return s3, table, input_bucket, output_bucket
+
+# Lambda handler function
 def handler(event, context):
-    for message in event['Records']:
-        process_message(message)
-    print("done")
+    # Initialize AWS resources
+    s3, table, input_bucket, output_bucket = init_aws_resources()
+    try:
+        # Check if there are records in the event
+        if 'Records' in event and len(event['Records']) > 0:
+            message = event['Records'][0]
+            # Process the message
+            process_message(message, s3, table, input_bucket, output_bucket)
+            logger.info("Evaluation complete!")
+            # Return a successful response
+            return {
+                'statusCode': 200,
+                'headers': HEADERS,
+                'body': json.dumps({"message": "Evaluation complete!"})
+            }
+        else:
+            # No messages to process
+            logger.info("No messages to process")
+            return {
+                'statusCode': 200,
+                'headers': HEADERS,
+                'body': json.dumps({"message": "No messages to process"})
+            }
+    except Exception as error:
+        # Log and return error response
+        logger.error(f"Error processing message: {str(error)}")
+        return {
+            'statusCode': 500,
+            'headers': HEADERS,
+            'body': json.dumps({"message": "Error processing message", "error": str(error)})
+        }
 
-def get_report_and_ruleset(session_id):
+# Function to get report and ruleset from DynamoDB
+def get_report_and_ruleset(session_id, table):
     try:
         # Fetch the item from DynamoDB based on sessionId
         response = table.get_item(Key={'sessionId': session_id})
         item = response.get('Item')
 
         if not item:
-            print('SessionId not found')
+            # Item not found in the table
+            logger.error(f"Item with {session_id} not found")
+            raise Exception(f"Item with {session_id} not found")
 
         # Extract reports and ruleset attributes
         reports = item.get('reports')
@@ -42,93 +91,96 @@ def get_report_and_ruleset(session_id):
             'reports': reports,
             'ruleset': ruleset
         }
-
         return result
+    except Exception as error:
+        logger.error(f"Error processing message: {str(error)}")
+        raise
 
-    except ClientError as e:
-        print(f"Error fetching item from DynamoDB: {e.response['Error']['Message']}")
-
+# Function to validate if JSON files exist
 def validate_json_exists(rpd_paths: list):
-    # Check if files exist
     for rpd_path in rpd_paths:
         if not os.path.exists(rpd_path):
+            # File does not exist
             filename = rpd_path.replace("/tmp/", "", 1)
-            return {
-                'statusCode': 400,
-                'headers': headers,
-                'body': json.dumps({"message": f"{filename} does not exist!"})
-        }
-    
+            logger.error(f"{filename} does not exist!")
+            raise Exception(f"{filename} does not exist!")
+
+# Function to validate JSON files
 def validate_json(rpd_paths: list):
     for rpd_path in rpd_paths:
         try:
+            # Attempt to deserialize the JSON file
             deserialize_rpd_file(rpd_path)
         except:
+            # File is not a valid JSON
             filename = rpd_path.replace("/tmp/", "", 1)
-            return {
-                'statusCode': 400,
-                'headers': headers,
-                'body': json.dumps(f"{filename} is not a valid JSON file")
-            }
+            logger.error(f"{filename} is not a valid JSON file")
+            raise
 
-def update_item(session_id):
-    new_status_message = "Evaluation complete"
+# Function to log failure to DynamoDB
+def log_failure(session_id, message, table):
+    new_status_message = message
     new_date_updated = datetime.now().isoformat()
-    output_path = f"s3://{outputBucket}/{session_id}.zip"
-    
     try:
         # Update the item in the DynamoDB table
         response = table.update_item(
             Key={'sessionId': session_id},
-            UpdateExpression='SET dateUpdated = :d, statusMessage = :o, outputPath = :s',
+            UpdateExpression='SET dateUpdated = :d, #status = :s, statusMessage = :e',
             ExpressionAttributeValues={
                 ':d': new_date_updated,
-                ':o': new_status_message,
-                ':s': output_path
+                ':e': new_status_message,
+                ':s': STATUS.FAILURE
+            },
+            ExpressionAttributeNames={
+                '#status': 'status'
             },
             ReturnValues="UPDATED_NEW"
         )
         return response
-    except ClientError as e:
-        print(f"Error updating item: {e.response['Error']['Message']}")
-        return None
+    except Exception as error:
+        logger.error(f"Error processing message: {str(error)}")
+        raise
 
-def process_message(message):
+# Function to process the message
+def process_message(message, s3, table, input_bucket, output_bucket):
     try:
-        print(f"Processed message {message['body']}")
+        logger.info(f"Processed message {message['body']}")
 
+        # Parse the message body
         dict_data = json.loads(message['body'])
 
-        print(dict_data)
+        logger.info(dict_data)
 
-        # Get bucket and file details from the event
-        # bucket = dict_data['Records'][0]['s3']['bucket']['name']
+        # Get the S3 key for the zip file
         zip_key = dict_data['Records'][0]['s3']['object']['key']
 
+        # Check if the file is a zip file
         if not zip_key.endswith('.zip'):
-            return {
-                'statusCode': 500,
-                'body': json.dumps('File is not a zip.')
-            }
+            logger.info('File is not a zip.')
+            raise Exception('File is not a zip.')
 
+        # Extract session ID from the zip file name
         session_id = zip_key.replace(".zip", "")
 
+        # Define the path for the downloaded zip file
         zip_path = f"/tmp/{zip_key}"
 
         # Download zip file from S3
-        s3.download_file(inputBucket, zip_key, zip_path)
+        s3.download_file(input_bucket, zip_key, zip_path)
 
         # Unzip the file
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall('/tmp/')
 
-        # Define file paths
-        user_rpd_path = "/tmp/user_model.json"
-        proposed_rpd_path = "/tmp/proposed_model.json"
-        baseline_rpd_path = "/tmp/baseline_model.json"
+        # Define file paths for the JSON files
+        user_rpd_path = '/tmp/user_model.json'
+        proposed_rpd_path = '/tmp/proposed_model.json'
+        baseline_rpd_path = '/tmp/baseline_model.json'
 
+        # Validate the existence of JSON files
         validate_json_exists([user_rpd_path, proposed_rpd_path, baseline_rpd_path])
 
+        # Validate the JSON files
         validate_json([user_rpd_path, proposed_rpd_path, baseline_rpd_path])
 
         # Deserialize rpd files
@@ -136,17 +188,15 @@ def process_message(message):
         proposed_rpd = deserialize_rpd_file(proposed_rpd_path)
         baseline_rpd = deserialize_rpd_file(baseline_rpd_path)
 
-        result_and_ruleset = get_report_and_ruleset(session_id)
+        # Get the report and ruleset from DynamoDB
+        result_and_ruleset = get_report_and_ruleset(session_id, table)
         reports = result_and_ruleset.get('reports')
         ruleset = result_and_ruleset.get('ruleset')
 
-        print(f"Ruleset: {ruleset}")
-        print(f"Reports: {reports}")
-        print(f"Type of Ruleset: {type(ruleset)}")
-        print(f"Type of Reports: {type(reports)}")
+        # Run the project evaluation
+        run_project_evaluation([user_rpd, proposed_rpd, baseline_rpd], ruleset, reports, saving_dir="/tmp", session_id=session_id)
 
-        run([user_rpd, proposed_rpd, baseline_rpd], ruleset, reports, saving_dir="/tmp", session_id=session_id)
-
+        # Define paths to exclude from the zip
         excluded_paths = [
             user_rpd_path,
             proposed_rpd_path,
@@ -154,6 +204,7 @@ def process_message(message):
             zip_path
         ]
 
+        # Collect report files to be zipped
         report_files = []
         for root, _, files in os.walk('/tmp'):
             for file in files:
@@ -161,24 +212,23 @@ def process_message(message):
                 if file_path not in excluded_paths:
                     report_files.append(file_path)
 
+        # Check if there are report files to zip
         if not report_files:
-            return {
-                'statusCode': 400,
-                'headers': headers,
-                'body': json.dumps({"message": "Ashrae file does not exist!"})
-            }
+            logger.error("Ashrae file does not exist!")
+            raise Exception("Ashrae file does not exist!")
 
+        # Create a new zip file with the report files
         with zipfile.ZipFile(zip_path, 'w') as zipf:
             for file_path in report_files:
                 zipf.write(file_path, os.path.relpath(file_path, '/tmp'))
-        
-        s3.upload_file(zip_path, outputBucket, f"{session_id}.zip")
 
-        # Remove once we have a log for 100% in the RCT tool
-        print("Updating database now that the simulation is done.")
-        update_item(session_id)
+        # Upload the new zip file to S3
+        s3.upload_file(zip_path, output_bucket, f"{session_id}.zip")
 
-        print('DONE!')
-    except Exception as err:
-        print("An error occurred")
-        raise err
+        # Log success message
+        logger.info(f"{session_id}.zip written to S3")
+    except Exception as error:
+        # Log failure and raise the error
+        log_failure(session_id, str(error), table)
+        logger.error(f"Error processing message: {str(error)}")
+        raise
