@@ -119,6 +119,7 @@ export class RctCdkStack extends Stack {
 
     // grant permissions for lambda to read/write to DynamoDB table and bucket
     sessionsTable.grantReadWriteData(runRCTEvaluationLambda);
+    sessionsTable.grantReadWriteData(retrieveRCTEvaluationOutputLambda);
     sessionsTable.grantReadWriteData(trackRCTProgressLambda);
     input_bucket.grantReadWrite(runRCTEvaluationLambda);
     output_bucket.grantReadWrite(retrieveRCTEvaluationOutputLambda);

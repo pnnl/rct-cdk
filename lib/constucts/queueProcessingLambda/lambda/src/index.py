@@ -129,7 +129,7 @@ def log_failure(session_id, message, table):
             ExpressionAttributeValues={
                 ':d': new_date_updated,
                 ':e': new_status_message,
-                ':s': STATUS.FAILURE
+                ':s': STATUS.FAILURE.value
             },
             ExpressionAttributeNames={
                 '#status': 'status'
