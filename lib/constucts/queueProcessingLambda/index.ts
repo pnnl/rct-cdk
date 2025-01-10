@@ -34,7 +34,7 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
 
     // Create an SQS queue
     const queue = new Queue(scope, `${applicationName}-${deploymentEnv}-queue`, {
-        visibilityTimeout: Duration.seconds(300),
+        visibilityTimeout: Duration.seconds(900),
         receiveMessageWaitTime: Duration.seconds(20), // Long polling
         retentionPeriod: Duration.days(4),
         deadLetterQueue: {
