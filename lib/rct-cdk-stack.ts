@@ -146,13 +146,13 @@ export class RctCdkStack extends Stack {
     );
 
     const mainPolicy = new PolicyStatement({
-        effect: Effect.ALLOW,
-        actions: ["execute-api:Invoke"],
-        resources: ["execute-api:/prod/*"],
-        principals: [new AnyPrincipal()],
-        conditions: {
-            IpAddress: { "aws:SourceIp": ["130.20.0.0/16"] },
-        },
+      effect: Effect.ALLOW,
+      actions: ["execute-api:Invoke"],
+      resources: ["execute-api:/prod/*"],
+      principals: [new AnyPrincipal()],
+      conditions: {
+        IpAddress: { "aws:SourceIp": ["130.20.0.0/16"] },
+      },
     });
 
     const mainPolicyDocument = new PolicyDocument({
@@ -161,18 +161,53 @@ export class RctCdkStack extends Stack {
 
     // Create an API Gateway resource for each of the CRUD operations
     const api = new RestApi(this, "rct", {
-      restApiName: "Ruleset Checking Tool Service",
+      restApiName: `${applicationName}-${deploymentEnv}-api`,
       // In case you want to manage binary types, uncomment the following
       binaryMediaTypes: ["application/octet-stream", "application/zip"],
       policy: mainPolicyDocument,
     });
 
+    const apiKey = api.addApiKey(`${applicationName}-${deploymentEnv}-api-key`, {
+      apiKeyName: `${applicationName}-${deploymentEnv}-api-key`,
+    });
+    const usagePlan = api.addUsagePlan(`${applicationName}-${deploymentEnv}-usage-plan`, {
+      name: `${applicationName}-${deploymentEnv}-usage-plan`,
+      throttle: {
+        rateLimit: 2,
+        burstLimit: 3,
+      },
+      apiStages: [
+        {
+          stage: api.deploymentStage,
+        },
+      ],
+    });
+
+    usagePlan.addApiKey(apiKey);
+
     const evaluate = api.root.addResource("evaluate");
-    evaluate.addMethod("POST", runRCTEvaluationIntegration);
+    evaluate.addMethod("POST", runRCTEvaluationIntegration, {
+      apiKeyRequired: true,
+      requestParameters: {
+        'method.request.header.x-api-key': true,
+      },
+    });
 
     const trackEvaluation = evaluate.addResource("{id}");
-    trackEvaluation.addMethod("GET", trackRCTProgressIntegration);
-    trackEvaluation.addMethod("POST", retrieveRCTEvaluationOutputIntegration);
+    trackEvaluation.addMethod("GET", trackRCTProgressIntegration, {
+      apiKeyRequired: true,
+      requestParameters: {
+        'method.request.header.x-api-key': true,
+      },
+    });
+
+    trackEvaluation.addMethod("POST", retrieveRCTEvaluationOutputIntegration, {
+      apiKeyRequired: true,
+      requestParameters: {
+        'method.request.header.x-api-key': true,
+      },
+    });
+
 
     const rulesets = api.root.addResource("rulesets");
     rulesets.addMethod("GET", countNumRuleSetsIntegration);

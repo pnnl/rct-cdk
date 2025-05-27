@@ -2,12 +2,11 @@ import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { S3Client, PutObjectCommand, PutObjectCommandInput } from '@aws-sdk/client-s3';
 import { Status } from '../status';
-const {v4: uuidv4} = require('uuid');
+import { v4 as uuidv4 } from 'uuid';
 
 
 const TABLE_NAME = process.env.TABLE_NAME || '';
 const INPUT_BUCKET_KEY = process.env.INPUT_BUCKET_KEY || '';
-const OUTPUT_BUCKET_KEY = process.env.INPUT_BUCKET_KEY || '';
 
 const s3Client = new S3Client();
 
