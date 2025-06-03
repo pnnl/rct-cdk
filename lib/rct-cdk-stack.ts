@@ -84,6 +84,12 @@ export class RctCdkStack extends Stack {
       // do we need to add policy for this lambda to access ECS?
     });
 
+    // API spec
+    const apiDocsLambda = new NodejsFunction(this, `${applicationName}-${deploymentEnv}-apiDocs`, {
+      entry: join(__dirname, "lambdas", "api-docs", "api-docs.ts"),
+      ...nodeJsFunctionProps
+    });
+
     //tracking the RCT evaluation progress
     const trackRCTProgressLambda = new NodejsFunction(
       this,
@@ -126,6 +132,9 @@ export class RctCdkStack extends Stack {
 
     // API gateway
     // 1. Integrate the lambda functions with API gateway resource
+    const apiDocsIntegration = new LambdaIntegration(
+      apiDocsLambda
+    );
     const runRCTEvaluationIntegration = new LambdaIntegration(
       runRCTEvaluationLambda
     );
@@ -184,6 +193,9 @@ export class RctCdkStack extends Stack {
     });
 
     usagePlan.addApiKey(apiKey);
+
+    const apiDocs = api.root.addResource("api-docs");
+    apiDocs.addMethod("GET", apiDocsIntegration);
 
     const evaluate = api.root.addResource("evaluate");
     evaluate.addMethod("POST", runRCTEvaluationIntegration, {
