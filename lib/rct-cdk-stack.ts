@@ -194,7 +194,7 @@ export class RctCdkStack extends Stack {
 
     usagePlan.addApiKey(apiKey);
 
-    const apiDocs = api.root.addResource("api-docs");
+    const apiDocs = api.root.addResource("docs");
     apiDocs.addMethod("GET", apiDocsIntegration);
 
     const evaluate = api.root.addResource("evaluate");
