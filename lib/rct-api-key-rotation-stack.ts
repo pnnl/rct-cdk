@@ -1,15 +1,15 @@
-import { StackProps, Duration, Fn } from "aws-cdk-lib";
+import { StackProps, Duration } from "aws-cdk-lib";
 import { SubnetType, Vpc } from "aws-cdk-lib/aws-ec2";
 import {
   NodejsFunction,
   NodejsFunctionProps,
 } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
-import * as cdk from 'aws-cdk-lib';
+import { Stack } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Schedule, Rule } from 'aws-cdk-lib/aws-events';
-import * as targets from 'aws-cdk-lib/aws-events-targets';
-import * as iam from 'aws-cdk-lib/aws-iam';
+import { LambdaFunction } from 'aws-cdk-lib/aws-events-targets';
+import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { join } from "path";
@@ -19,7 +19,7 @@ export interface RCTStackProps extends StackProps {
   deploymentEnv: string;
 }
 
-export class RctApiKeyRotationStack extends cdk.Stack {
+export class RctApiKeyRotationStack extends Stack {
   constructor(scope: Construct, id: string, props: RCTStackProps) {
     super(scope, id, props);
 
@@ -61,7 +61,7 @@ export class RctApiKeyRotationStack extends cdk.Stack {
       ...nodeJsFunctionProps,
     });
 
-    rotateApiKeyLambda.addToRolePolicy(new iam.PolicyStatement({
+    rotateApiKeyLambda.addToRolePolicy(new PolicyStatement({
       actions: [
         'apigateway:GET',
         'apigateway:POST',
@@ -75,7 +75,7 @@ export class RctApiKeyRotationStack extends cdk.Stack {
 
     new Rule(this, `${applicationName}-${deploymentEnv}-api-key-rotation-trigger`, {
       schedule: Schedule.rate(Duration.minutes(1)),
-      targets: [new targets.LambdaFunction(rotateApiKeyLambda)],
+      targets: [new LambdaFunction(rotateApiKeyLambda)],
     });
 
     topic.grantPublish(rotateApiKeyLambda);
