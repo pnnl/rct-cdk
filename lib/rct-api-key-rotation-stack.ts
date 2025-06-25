@@ -75,7 +75,7 @@ export class RctApiKeyRotationStack extends Stack {
     }));
 
     new Rule(this, `${applicationName}-${deploymentEnv}-api-key-rotation-trigger`, {
-      schedule: Schedule.rate(Duration.minutes(1)),
+      schedule: Schedule.rate(Duration.days(1)),
       targets: [new LambdaFunction(rotateApiKeyLambda)],
     });
 

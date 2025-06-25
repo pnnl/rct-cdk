@@ -20,10 +20,6 @@ exports.handler = async () => {
   }));
   const existingApiKeyId = apiKeyIdParam.Parameter?.Value!
 
-  console.log(`Usage Plan ID: ${usagePlanId}`);
-  console.log(`Existing API Key ID: ${existingApiKeyId}`);
-  console.log(`${applicationName}-${deploymentEnv}-api-key-id`)
-
 
   const apiKey = await apiGateway.getApiKey({
     apiKey: existingApiKeyId,
