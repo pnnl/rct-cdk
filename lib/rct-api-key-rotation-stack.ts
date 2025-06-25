@@ -29,6 +29,7 @@ export class RctApiKeyRotationStack extends Stack {
 
     const emailList = [
         'julian.slane-holloway@pnnl.gov',
+        'weili.xu@pnnl.gov'
     ];
     for (const email of emailList) {
         topic.addSubscription(new EmailSubscription(email));
