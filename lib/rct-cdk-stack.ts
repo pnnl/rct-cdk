@@ -15,6 +15,7 @@ import { RuleSetCountLambda } from "./constucts/ruleSetCountLambda";
 import { RuleCountLambda } from "./constucts/ruleCountLambda";
 import { RuleSetReportCountLambda } from "./constucts/ruleSetAvailableReportsLambda";
 import { AnyPrincipal, Effect, PolicyDocument, PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 
 export interface RCTStackProps extends StackProps {
   applicationName: string;
@@ -191,8 +192,17 @@ export class RctCdkStack extends Stack {
         },
       ],
     });
-
     usagePlan.addApiKey(apiKey);
+
+    new StringParameter(this, `${applicationName}-${deploymentEnv}-api-key-param`, {
+      parameterName: `/${applicationName}-${deploymentEnv}-api-key-id`,
+      stringValue: apiKey.keyId,
+    });
+
+    new StringParameter(this, `${applicationName}-${deploymentEnv}-usage-plan-id`, {
+      parameterName: `/${applicationName}-${deploymentEnv}-usage-plan-id`,
+      stringValue: usagePlan.usagePlanId,
+    });
 
     const apiDocs = api.root.addResource("docs");
     apiDocs.addMethod("GET", apiDocsIntegration);

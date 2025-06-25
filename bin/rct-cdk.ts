@@ -3,8 +3,7 @@ import 'source-map-support/register';
 import { App } from 'aws-cdk-lib';
 import { RctCdkStack } from '../lib/rct-cdk-stack';
 import { RctResourceStack } from '../lib/rct-resource-stack';
-import { AwsSolutionsChecks } from "cdk-nag";
-import { Aspects } from "aws-cdk-lib";
+import { RctApiKeyRotationStack } from '../lib/rct-api-key-rotation-stack';
 
 require("dotenv").config();
 
@@ -37,4 +36,10 @@ new RctCdkStack(app, `${applicationName}-${deploymentEnv}-stack`, {
   applicationName: String(applicationName),
   deploymentEnv: String(deploymentEnv)
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+});
+
+new RctApiKeyRotationStack(app, `${applicationName}-${deploymentEnv}-api-key-rotation-stack`, {
+  env: { account: String(ACCOUNT), region: String(REGION) },
+  applicationName: String(applicationName),
+  deploymentEnv: String(deploymentEnv)
 });
