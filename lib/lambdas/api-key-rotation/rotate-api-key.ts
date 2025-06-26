@@ -20,10 +20,6 @@ exports.handler = async () => {
   }));
   const existingApiKeyId = apiKeyIdParam.Parameter?.Value!
 
-  console.log(`Usage Plan ID: ${usagePlanId}`);
-  console.log(`Existing API Key ID: ${existingApiKeyId}`);
-  console.log(`${applicationName}-${deploymentEnv}-api-key-id`)
-
 
   const apiKey = await apiGateway.getApiKey({
     apiKey: existingApiKeyId,
@@ -57,7 +53,7 @@ exports.handler = async () => {
     await sns.publish({
       TopicArn: topicArn,
       Subject: 'RCT API Key Rotated',
-      Message: `Rotated API key (${apiKey.name}) after ${ageInDays} days.\nNew key ID: ${newKey.id}`,
+      Message: `Rotated API key (${apiKey.name}) after ${expirationDuration} days.\nNew key ID: ${newKey.id}\nNew key value: ${newKey.value}`,
     }).promise();
 
     await apiGateway.deleteApiKey({ apiKey: existingApiKeyId }).promise();
