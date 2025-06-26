@@ -53,7 +53,7 @@ exports.handler = async () => {
     await sns.publish({
       TopicArn: topicArn,
       Subject: 'RCT API Key Rotated',
-      Message: `Rotated API key (${apiKey.name}) after ${ageInDays} days.\nNew key ID: ${newKey.id}`,
+      Message: `Rotated API key (${apiKey.name}) after ${expirationDuration} days.\nNew key ID: ${newKey.id}\nNew key value: ${newKey.value}`,
     }).promise();
 
     await apiGateway.deleteApiKey({ apiKey: existingApiKeyId }).promise();
