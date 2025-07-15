@@ -176,7 +176,7 @@ def process_message(message, s3, table, input_bucket, output_bucket):
         rpd_files = []
         for root, _, files in os.walk('/tmp'):
             for file in files:
-                if file.endswith(('.json', '.rpd')):
+                if file.endswith(('.json', '.rpd')) and "__MACOSX" not in root:
                     file_path = os.path.join(root, file)
                     rpd_files.append(file_path)
 
