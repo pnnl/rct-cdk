@@ -160,9 +160,6 @@ export class RctCdkStack extends Stack {
       actions: ["execute-api:Invoke"],
       resources: ["execute-api:/prod/*"],
       principals: [new AnyPrincipal()],
-      conditions: {
-        IpAddress: { "aws:SourceIp": ["130.20.0.0/16"] },
-      },
     });
 
     const mainPolicyDocument = new PolicyDocument({

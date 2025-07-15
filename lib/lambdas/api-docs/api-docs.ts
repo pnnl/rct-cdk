@@ -130,7 +130,7 @@ externalDocs:
   description: Find out more about Ruleset Checking Tool
   url: http://github.com/pnnl/ruleset-checking-tool
 servers:
-  - url: https://jm60gbklga.execute-api.us-west-2.amazonaws.com/prod/
+  - url: https://simcheck.energycode.pnnl.gov/
 tags:
   - name: project evaluation
     description: project evaluation workflow
@@ -139,6 +139,10 @@ tags:
       url: https://github.com/pnnl/ruleset-checking-tool/wiki/Standard229#project-testing-workflow
   - name: misc
     description: Miscellaneous API calls
+    
+security:
+  - x-api-key: []
+    
 paths:
   /evaluate:
     post:
@@ -184,6 +188,9 @@ paths:
             application/json:
                 schema:
                   $ref: '#/components/schemas/InternalError'
+      security:
+        - x-api-key: []
+
   /evaluate/{id}:
     get:
       tags:
@@ -221,7 +228,10 @@ paths:
           content:
             application/json:
                 schema:
-                  $ref: '#/components/schemas/InternalError'     
+                  $ref: '#/components/schemas/InternalError'
+      security:
+        - x-api-key: []
+        
     post:
       tags:
        - project evaluation
@@ -259,6 +269,9 @@ paths:
             application/json:
                 schema:
                   $ref: '#/components/schemas/InternalError'
+      security:
+        - x-api-key: []
+        
   /rulesets:
     get:
       tags:
@@ -343,6 +356,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/InternalError'
 components:
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key
+
   schemas:
     Evaluation:
       type: object
