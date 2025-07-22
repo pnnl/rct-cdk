@@ -172,21 +172,22 @@ def process_message(message, s3, table, input_bucket, output_bucket):
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall('/tmp/')
 
-        # Define file paths for the JSON files
-        user_rpd_path = '/tmp/user_model.json'
-        proposed_rpd_path = '/tmp/proposed_model.json'
-        baseline_rpd_path = '/tmp/baseline_model.json'
+        # Find all .json and .rpd files in /tmp
+        rpd_files = []
+        for root, _, files in os.walk('/tmp'):
+            for file in files:
+                if file.endswith(('.json', '.rpd')) and "__MACOSX" not in root:
+                    file_path = os.path.join(root, file)
+                    rpd_files.append(file_path)
 
-        # Validate the existence of JSON files
-        validate_json_exists([user_rpd_path, proposed_rpd_path, baseline_rpd_path])
-
-        # Validate the JSON files
-        validate_json([user_rpd_path, proposed_rpd_path, baseline_rpd_path])
-
-        # Deserialize rpd files
-        user_rpd = deserialize_rpd_file(user_rpd_path)
-        proposed_rpd = deserialize_rpd_file(proposed_rpd_path)
-        baseline_rpd = deserialize_rpd_file(baseline_rpd_path)
+        # Validate and deserialize all RPD files
+        rpds = []
+        for rpd_path in rpd_files:
+            # Validate JSON format
+            validate_json([rpd_path])
+            # Deserialize RPD file
+            rpd = deserialize_rpd_file(rpd_path)
+            rpds.append(rpd)
 
         # Get the report and ruleset from DynamoDB
         result_and_ruleset = get_report_and_ruleset(session_id, table)
@@ -194,28 +195,19 @@ def process_message(message, s3, table, input_bucket, output_bucket):
         ruleset = result_and_ruleset.get('ruleset')
 
         # Run the project evaluation
-        run_project_evaluation([user_rpd, proposed_rpd, baseline_rpd], ruleset, reports, saving_dir="/tmp", session_id=session_id)
-
-        # Define paths to exclude from the zip
-        excluded_paths = [
-            user_rpd_path,
-            proposed_rpd_path,
-            baseline_rpd_path,
-            zip_path
-        ]
+        run_project_evaluation(rpds, ruleset, reports, saving_dir="/tmp/reports", session_id=session_id)
 
         # Collect report files to be zipped
         report_files = []
-        for root, _, files in os.walk('/tmp'):
+        for root, _, files in os.walk('/tmp/reports'):
             for file in files:
                 file_path = os.path.join(root, file)
-                if file_path not in excluded_paths:
-                    report_files.append(file_path)
+                report_files.append(file_path)
 
         # Check if there are report files to zip
         if not report_files:
-            logger.error("Ashrae file does not exist!")
-            raise Exception("Ashrae file does not exist!")
+            logger.error("Evaluation reports do not exist!")
+            raise Exception("Evaluation reports do not exist!")
 
         # Create a new zip file with the report files
         with zipfile.ZipFile(zip_path, 'w') as zipf:
