@@ -24,6 +24,7 @@ export interface RCTStackProps extends StackProps {
 }
 
 interface VersionedRCTStackProps extends StackProps {
+  api: RestApi;
   applicationName: string;
   deploymentEnv: string;
   apiVersion: ApiVersion;
@@ -84,11 +85,17 @@ export class RctCdkStack extends Stack {
       stringValue: usagePlan.usagePlanId,
     });
 
-    this.createVersionedApiResources(api, {...props, apiVersion: ApiVersion.V0})
+    Object.values(ApiVersion).forEach((version) => {
+      this.createVersionedApiResources({
+        ...props,
+        apiVersion: version,
+        api: api, 
+      });
+    });
   }
 
-  private createVersionedApiResources(api: RestApi, props: VersionedRCTStackProps) {
-    const { applicationName, deploymentEnv, apiVersion } = props;
+  private createVersionedApiResources(props: VersionedRCTStackProps) {
+    const { applicationName, deploymentEnv, apiVersion, api } = props;
     
     const inputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-${apiVersion}-input-bucket-export`);
     const outputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-${apiVersion}-output-bucket-export`);
