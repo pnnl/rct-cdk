@@ -5,9 +5,10 @@ import json
 headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
 
 def handler(event, context):
-    ruleset = event.get('queryStringParameters', {}).get('ruleset', None)
+    query_params = event.get('queryStringParameters') or {}
+    ruleset = query_params.get('ruleset')
 
-    if ruleset is None:
+    if not ruleset:
         return {
             'statusCode': 400,
             'headers': headers,
@@ -16,6 +17,11 @@ def handler(event, context):
     
     try:
         ruleset_reports = get_reports(ruleset)
+        return {
+            'statusCode': 200,
+            'headers': headers,
+            'body': json.dumps({'num_reports': len(ruleset_reports), 'reports': ruleset_reports})
+        }
     except RCTFailureException as e:
         return {
             'statusCode': 500,
@@ -28,9 +34,3 @@ def handler(event, context):
             'headers': headers,
             'body': json.dumps({'message': "Internal Error"})
         } 
-
-    return {
-        'statusCode': 200,
-        'headers': headers,
-        'body': json.dumps({'num_reports': len(ruleset_reports), 'reports': ruleset_reports})
-    }
