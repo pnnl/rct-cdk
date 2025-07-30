@@ -2,7 +2,7 @@
 const zlib = require('zlib');
 import { DynamoDBClient, UpdateItemCommand, ReturnValue } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
-import { Status } from "../status";
+import { Status } from "../enums/status";
 
 // Retrieve environment variables
 const {

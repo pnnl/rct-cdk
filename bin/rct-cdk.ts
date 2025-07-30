@@ -4,6 +4,7 @@ import { App } from 'aws-cdk-lib';
 import { RctCdkStack } from '../lib/rct-cdk-stack';
 import { RctResourceStack } from '../lib/rct-resource-stack';
 import { RctApiKeyRotationStack } from '../lib/rct-api-key-rotation-stack';
+import { ApiVersion } from '../lib/enums/rct-version';
 
 require("dotenv").config();
 
@@ -11,7 +12,8 @@ const {
   ACCOUNT,
   REGION,
   applicationName = 'rct',
-  deploymentEnv = 'dev'
+  deploymentEnv = 'dev',
+  apiVersion = ApiVersion.V0
 } = process.env;
 
 const app = new App();
@@ -34,7 +36,7 @@ new RctCdkStack(app, `${applicationName}-${deploymentEnv}-stack`, {
    * want to deploy the stack to. */
   env: { account: String(ACCOUNT), region: String(REGION) },
   applicationName: String(applicationName),
-  deploymentEnv: String(deploymentEnv)
+  deploymentEnv: String(deploymentEnv),
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
 });
 
