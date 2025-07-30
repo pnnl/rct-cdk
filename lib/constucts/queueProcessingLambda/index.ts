@@ -11,11 +11,12 @@ import { FilterPattern, LogGroup, SubscriptionFilter } from 'aws-cdk-lib/aws-log
 import { LambdaDestination } from 'aws-cdk-lib/aws-logs-destinations';
 import { ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { ApiVersion, apiVersionMap } from "../../enums/rct-version"
 
 interface QueueProcessingLambdaProps {
     applicationName: string
     deploymentEnv: string
-    apiVersion: string
+    apiVersion: ApiVersion
 }
 
 export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLambdaProps) => {
@@ -50,11 +51,16 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
         removalPolicy: RemovalPolicy.DESTROY
     });
 
+    const versionToInstall = apiVersionMap[apiVersion];
     // Create a Lambda function
     const lambdaFunctionCheck = new Function(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-check-lambda`, {
         runtime: Runtime.FROM_IMAGE,
         handler: Handler.FROM_IMAGE,
-        code: Code.fromAssetImage(path.join(__dirname, 'lambda')),
+        code: Code.fromAssetImage(path.join(__dirname, 'lambda'), {
+            buildArgs: {
+                RCT_VERSION: versionToInstall,
+            },
+        }),
         timeout: Duration.minutes(15),
         memorySize: 1024,
         environment: {

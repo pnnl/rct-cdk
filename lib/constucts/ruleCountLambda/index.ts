@@ -11,7 +11,7 @@ interface RuleCountProps {
 }
 
 export const RuleCountLambda = (scope: Construct, props: RuleCountProps): Function => {
-    const {applicationName, deploymentEnv, apiVersion} = props
+    const { applicationName, deploymentEnv, apiVersion } = props
     const versionToInstall = apiVersionMap[apiVersion];
     // Create a Lambda function
     return new Function(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-rule-lambda`, {
@@ -19,7 +19,7 @@ export const RuleCountLambda = (scope: Construct, props: RuleCountProps): Functi
         handler: Handler.FROM_IMAGE,
         code: Code.fromAssetImage(path.join(__dirname, 'lambda'), {
             buildArgs: {
-            RCT_VERSION: versionToInstall,
+                RCT_VERSION: versionToInstall,
             },
         }),
         timeout: Duration.seconds(60),
