@@ -16,10 +16,18 @@ import { RuleCountLambda } from "./constucts/ruleCountLambda";
 import { RuleSetReportCountLambda } from "./constucts/ruleSetAvailableReportsLambda";
 import { AnyPrincipal, Effect, PolicyDocument, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { StringParameter } from 'aws-cdk-lib/aws-ssm';
+import { ApiVersion } from "./enums/rct-version";
 
 export interface RCTStackProps extends StackProps {
   applicationName: string;
   deploymentEnv: string;
+}
+
+interface VersionedRCTStackProps extends StackProps {
+  api: RestApi;
+  applicationName: string;
+  deploymentEnv: string;
+  apiVersion: ApiVersion;
 }
 
 export class RctCdkStack extends Stack {
@@ -28,9 +36,69 @@ export class RctCdkStack extends Stack {
 
     const { applicationName, deploymentEnv } = props;
 
-    // get the bucket
-    const inputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-input-bucket-export`);
-    const outputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-output-bucket-export`);
+    const mainPolicy = new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["execute-api:Invoke"],
+      resources: [`execute-api:/prod/*`],
+      principals: [new AnyPrincipal()],
+    });
+
+    const mainPolicyDocument = new PolicyDocument({
+      statements: [mainPolicy],
+    });
+
+    // Create an API Gateway resource for each of the CRUD operations
+    const api = new RestApi(this, "rct", {
+      restApiName: `${applicationName}-${deploymentEnv}-api`,
+      // In case you want to manage binary types, uncomment the following
+      binaryMediaTypes: ["application/octet-stream", "application/zip"],
+      policy: mainPolicyDocument,
+      deployOptions: {
+        stageName: "prod"
+      }
+    });
+
+    const apiKey = api.addApiKey(`${applicationName}-${deploymentEnv}-api-key`, {
+      apiKeyName: `${applicationName}-${deploymentEnv}-api-key`,
+    });
+    const usagePlan = api.addUsagePlan(`${applicationName}-${deploymentEnv}-usage-plan`, {
+      name: `${applicationName}-${deploymentEnv}-usage-plan`,
+      throttle: {
+        rateLimit: 2,
+        burstLimit: 3,
+      },
+      apiStages: [
+        {
+          stage: api.deploymentStage,
+        },
+      ],
+    });
+    usagePlan.addApiKey(apiKey);
+
+    new StringParameter(this, `${applicationName}-${deploymentEnv}-api-key-param`, {
+      parameterName: `/${applicationName}-${deploymentEnv}-api-key-id`,
+      stringValue: apiKey.keyId,
+    });
+
+    new StringParameter(this, `${applicationName}-${deploymentEnv}-usage-plan-id`, {
+      parameterName: `/${applicationName}-${deploymentEnv}-usage-plan-id`,
+      stringValue: usagePlan.usagePlanId,
+    });
+
+    Object.values(ApiVersion).forEach((version) => {
+      this.createVersionedApiResources({
+        ...props,
+        apiVersion: version,
+        api: api, 
+      });
+    });
+  }
+
+  private createVersionedApiResources(props: VersionedRCTStackProps) {
+    const { applicationName, deploymentEnv, apiVersion, api } = props;
+    
+    const inputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-${apiVersion}-input-bucket-export`);
+    const outputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-${apiVersion}-output-bucket-export`);
 
     const input_bucket = Bucket.fromBucketName(
       this,
@@ -47,14 +115,13 @@ export class RctCdkStack extends Stack {
     // get the dynamo table
     const sessionsTable = Table.fromTableName(
       this,
-      `${applicationName}-${deploymentEnv}-session`,
-      `${applicationName}-${deploymentEnv}-session`
+      `${applicationName}-${deploymentEnv}-${apiVersion}-session`,
+      `${applicationName}-${deploymentEnv}-${apiVersion}-session`
     );
 
-    //vpc with 2 availability zones (not sure if it is needed.)
     const vpc = Vpc.fromLookup(
       this,
-      `${applicationName}-${deploymentEnv}-ec2`,
+      `${applicationName}-${deploymentEnv}-${apiVersion}-ec2`,
       { vpcId: "vpc-00ff3e7b236c5f892" }
     ); //find one PNNL created
 
@@ -63,8 +130,7 @@ export class RctCdkStack extends Stack {
       subnetType: SubnetType.PRIVATE_WITH_EGRESS,
     }).subnets;
 
-    //*************************************
-    // Lambda functions
+
     const nodeJsFunctionProps: NodejsFunctionProps = {
       depsLockFilePath: join(__dirname, "package-lock.json"),
       environment: {
@@ -79,14 +145,14 @@ export class RctCdkStack extends Stack {
     };
 
     // Lambda functions
-    const runRCTEvaluationLambda = new NodejsFunction(this, `${applicationName}-${deploymentEnv}-runRCT`, {
+    const runRCTEvaluationLambda = new NodejsFunction(this, `${applicationName}-${deploymentEnv}-${apiVersion}-runRCT`, {
       entry: join(__dirname, "lambdas", "run-rct.ts"),
       ...nodeJsFunctionProps,
       // do we need to add policy for this lambda to access ECS?
     });
 
     // API spec
-    const apiDocsLambda = new NodejsFunction(this, `${applicationName}-${deploymentEnv}-apiDocs`, {
+    const apiDocsLambda = new NodejsFunction(this, `${applicationName}-${deploymentEnv}-${apiVersion}-apiDocs`, {
       entry: join(__dirname, "lambdas", "api-docs", "api-docs.ts"),
       ...nodeJsFunctionProps
     });
@@ -94,7 +160,7 @@ export class RctCdkStack extends Stack {
     //tracking the RCT evaluation progress
     const trackRCTProgressLambda = new NodejsFunction(
       this,
-      `${applicationName}-${deploymentEnv}-trackRCTEvaluation`,
+      `${applicationName}-${deploymentEnv}-${apiVersion}-trackRCTEvaluation`,
       {
         entry: join(__dirname, "lambdas", "track-rct.ts"),
         ...nodeJsFunctionProps,
@@ -104,7 +170,7 @@ export class RctCdkStack extends Stack {
     //Retrieve output files
     const retrieveRCTEvaluationOutputLambda = new NodejsFunction(
       this,
-      `${applicationName}-${deploymentEnv}-retrieveRCTOutput`,
+      `${applicationName}-${deploymentEnv}-${apiVersion}-retrieveRCTOutput`,
       {
         entry: join(__dirname, "lambdas", "retrieve-rct-output.ts"),
         ...nodeJsFunctionProps,
@@ -155,56 +221,12 @@ export class RctCdkStack extends Stack {
       rulesetReportCountLambda
     );
 
-    const mainPolicy = new PolicyStatement({
-      effect: Effect.ALLOW,
-      actions: ["execute-api:Invoke"],
-      resources: ["execute-api:/prod/*"],
-      principals: [new AnyPrincipal()],
-    });
+    const apiRoot = api.root.addResource(apiVersion.toString());
 
-    const mainPolicyDocument = new PolicyDocument({
-      statements: [mainPolicy],
-    });
-
-    // Create an API Gateway resource for each of the CRUD operations
-    const api = new RestApi(this, "rct", {
-      restApiName: `${applicationName}-${deploymentEnv}-api`,
-      // In case you want to manage binary types, uncomment the following
-      binaryMediaTypes: ["application/octet-stream", "application/zip"],
-      policy: mainPolicyDocument,
-    });
-
-    const apiKey = api.addApiKey(`${applicationName}-${deploymentEnv}-api-key`, {
-      apiKeyName: `${applicationName}-${deploymentEnv}-api-key`,
-    });
-    const usagePlan = api.addUsagePlan(`${applicationName}-${deploymentEnv}-usage-plan`, {
-      name: `${applicationName}-${deploymentEnv}-usage-plan`,
-      throttle: {
-        rateLimit: 2,
-        burstLimit: 3,
-      },
-      apiStages: [
-        {
-          stage: api.deploymentStage,
-        },
-      ],
-    });
-    usagePlan.addApiKey(apiKey);
-
-    new StringParameter(this, `${applicationName}-${deploymentEnv}-api-key-param`, {
-      parameterName: `/${applicationName}-${deploymentEnv}-api-key-id`,
-      stringValue: apiKey.keyId,
-    });
-
-    new StringParameter(this, `${applicationName}-${deploymentEnv}-usage-plan-id`, {
-      parameterName: `/${applicationName}-${deploymentEnv}-usage-plan-id`,
-      stringValue: usagePlan.usagePlanId,
-    });
-
-    const apiDocs = api.root.addResource("docs");
+    const apiDocs = apiRoot.addResource("docs");
     apiDocs.addMethod("GET", apiDocsIntegration);
 
-    const evaluate = api.root.addResource("evaluate");
+    const evaluate = apiRoot.addResource("evaluate");
     evaluate.addMethod("POST", runRCTEvaluationIntegration, {
       apiKeyRequired: true,
       requestParameters: {
@@ -228,11 +250,11 @@ export class RctCdkStack extends Stack {
     });
 
 
-    const rulesets = api.root.addResource("rulesets");
+    const rulesets = apiRoot.addResource("rulesets");
     rulesets.addMethod("GET", countNumRuleSetsIntegration);
-    const rules = api.root.addResource("rules")
+    const rules = apiRoot.addResource("rules")
     rules.addMethod("GET", countNumRulesIntegration);
-    const reports = api.root.addResource("reports");
+    const reports = apiRoot.addResource("reports");
     reports.addMethod("GET", countNumRuleSetReportsIntegration);
 
     QueueProcessingLambda(this, {

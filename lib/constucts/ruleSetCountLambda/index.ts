@@ -2,19 +2,26 @@ import { Construct } from 'constructs';
 import { Function, Runtime, Code, Handler } from 'aws-cdk-lib/aws-lambda';
 import path = require('path');
 import { Duration } from 'aws-cdk-lib';
+import { ApiVersion, apiVersionMap } from "../../enums/rct-version"
 
 interface RuleSetCountProps {
     applicationName: string
-    deploymentEnv: string
+    deploymentEnv: string,
+    apiVersion: ApiVersion
 }
 
 export const RuleSetCountLambda = (scope: Construct, props: RuleSetCountProps): Function => {
-    const {applicationName, deploymentEnv} = props
+    const {applicationName, deploymentEnv, apiVersion} = props
+    const versionToInstall = apiVersionMap[apiVersion];
     // Create a Lambda function
-    return new Function(scope, `${applicationName}-${deploymentEnv}-ruleset-count-lambda`, {
+    return new Function(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-ruleset-count-lambda`, {
         runtime: Runtime.FROM_IMAGE,
         handler: Handler.FROM_IMAGE,
-        code: Code.fromAssetImage(path.join(__dirname, 'lambda')),
+        code: Code.fromAssetImage(path.join(__dirname, 'lambda'), {
+            buildArgs: {
+                RCT_VERSION: versionToInstall,
+            },
+        }),
         timeout: Duration.seconds(60),
         memorySize: 1024
     });

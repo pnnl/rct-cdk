@@ -1,7 +1,7 @@
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { S3Client, PutObjectCommand, PutObjectCommandInput } from '@aws-sdk/client-s3';
-import { Status } from '../status';
+import { Status } from '../enums/status';
 import { v4 as uuidv4 } from 'uuid';
 
 
