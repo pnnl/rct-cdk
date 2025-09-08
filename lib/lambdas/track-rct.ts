@@ -40,7 +40,7 @@ export const handler = async (event: any = {}): Promise<any> => {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             }, 
-            body: JSON.stringify({message: response.Item.statusMessage})};
+            body: JSON.stringify({message: response.Item.statusMessage, status: response.Item.status})};
     } else {
         return {
             statusCode: 404,
