@@ -194,12 +194,15 @@ def process_message(message, s3, table, input_bucket, output_bucket):
         reports = result_and_ruleset.get('reports')
         ruleset = result_and_ruleset.get('ruleset')
 
+        saving_dir = "/tmp/reports"
+        os.makedirs(saving_dir, exist_ok=True)
+
         # Run the project evaluation
-        run_project_evaluation(rpds, ruleset, reports, saving_dir="/tmp/reports", session_id=session_id)
+        run_project_evaluation(rpds, ruleset, reports, saving_dir=saving_dir, session_id=session_id)
 
         # Collect report files to be zipped
         report_files = []
-        for root, _, files in os.walk('/tmp/reports'):
+        for root, _, files in os.walk(saving_dir):
             for file in files:
                 file_path = os.path.join(root, file)
                 report_files.append(file_path)
@@ -212,7 +215,7 @@ def process_message(message, s3, table, input_bucket, output_bucket):
         # Create a new zip file with the report files
         with zipfile.ZipFile(zip_path, 'w') as zipf:
             for file_path in report_files:
-                zipf.write(file_path, os.path.relpath(file_path, '/tmp'))
+                zipf.write(file_path, os.path.basename(file_path))
 
         # Upload the new zip file to S3
         s3.upload_file(zip_path, output_bucket, f"{session_id}.zip")
