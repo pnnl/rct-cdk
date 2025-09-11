@@ -167,6 +167,16 @@ export class RctCdkStack extends Stack {
       }
     );
 
+    //Retrieve input files
+    const retrieveRCTEvaluationInputLambda = new NodejsFunction(
+      this,
+      `${applicationName}-${deploymentEnv}-${apiVersion}-retrieveRCTInput`,
+      {
+        entry: join(__dirname, "lambdas", "retrieve-rct-input.ts"),
+        ...nodeJsFunctionProps,
+      }
+    );
+
     //Retrieve output files
     const retrieveRCTEvaluationOutputLambda = new NodejsFunction(
       this,
@@ -195,6 +205,7 @@ export class RctCdkStack extends Stack {
     sessionsTable.grantReadWriteData(retrieveRCTEvaluationOutputLambda);
     sessionsTable.grantReadWriteData(trackRCTProgressLambda);
     input_bucket.grantReadWrite(runRCTEvaluationLambda);
+    input_bucket.grantReadWrite(retrieveRCTEvaluationInputLambda);
     output_bucket.grantReadWrite(retrieveRCTEvaluationOutputLambda);
 
     // API gateway
@@ -207,6 +218,9 @@ export class RctCdkStack extends Stack {
     );
     const trackRCTProgressIntegration = new LambdaIntegration(
       trackRCTProgressLambda
+    );
+    const retrieveRCTEvaluationInputIntegration = new LambdaIntegration(
+      retrieveRCTEvaluationInputLambda
     );
     const retrieveRCTEvaluationOutputIntegration = new LambdaIntegration(
       retrieveRCTEvaluationOutputLambda
@@ -225,6 +239,14 @@ export class RctCdkStack extends Stack {
 
     const apiDocs = apiRoot.addResource("docs");
     apiDocs.addMethod("GET", apiDocsIntegration);
+
+    const retrieveInput = apiRoot.addResource("{id}");
+    retrieveInput.addMethod("GET", retrieveRCTEvaluationInputIntegration, {
+      apiKeyRequired: true,
+      requestParameters: {
+        'method.request.header.x-api-key': true,
+      },
+    });
 
     const evaluate = apiRoot.addResource("evaluate");
     evaluate.addMethod("POST", runRCTEvaluationIntegration, {
