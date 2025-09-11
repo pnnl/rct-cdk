@@ -89,7 +89,7 @@ export const handler = async (event: any = {}): Promise<any> => {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            body: JSON.stringify({ message: 'Output summary file not found' })
+            body: JSON.stringify({ message: 'RPD input file(s) not found' })
         };
     };
 
