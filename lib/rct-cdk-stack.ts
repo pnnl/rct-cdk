@@ -240,7 +240,8 @@ export class RctCdkStack extends Stack {
     const apiDocs = apiRoot.addResource("docs");
     apiDocs.addMethod("GET", apiDocsIntegration);
 
-    const retrieveInput = apiRoot.addResource("{id}");
+    const rpds = apiRoot.addResource("rpds");
+    const retrieveInput = rpds.addResource("{id}");
     retrieveInput.addMethod("GET", retrieveRCTEvaluationInputIntegration, {
       apiKeyRequired: true,
       requestParameters: {
