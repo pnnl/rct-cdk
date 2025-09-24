@@ -107,7 +107,7 @@ info:
     TBD
 
     
-    This PNNL-RCT API version is __0.0.1__. Current supported API functions include a project evaluation workflow and three miscelaneous functions.
+    This PNNL-RCT API version is __0.4.1__. Current supported API functions include a project evaluation workflow and three miscelaneous functions.
     
     Some useful links:
     - [ruleset-checking-tool repository](https://github.com/pnnl/ruleset-checking-tool)
@@ -125,12 +125,15 @@ info:
   license:
     name: MIT
     url: https://github.com/pnnl/ruleset-checking-tool/blob/master/LICENSE
-  version: 0.0.1
+  version: 0.4.1
 externalDocs:
   description: Find out more about Ruleset Checking Tool
   url: http://github.com/pnnl/ruleset-checking-tool
 servers:
   - url: https://simcheck.energycode.pnnl.gov/
+    description: Production server
+  - url: https://simcheck.energycode.pnnl.gov/v0
+    description: Version 0 server
 tags:
   - name: project evaluation
     description: project evaluation workflow
@@ -144,6 +147,46 @@ security:
   - x-api-key: []
     
 paths:
+  /rpds/{id}:
+    get:
+      tags:
+        - get RPD files
+      summary: Get RPD input files
+      description: Call this function to get a list of RPD input files in a ziped format.
+      parameters:
+        - name: id
+          in: query
+          description: The session id of the RPD input files.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileDownloadURL'
+        '400':
+          description: Invalid request, missing data.
+          content:
+            application/json:
+                schema:
+                  $ref: '#/components/schemas/GeneralDataError'
+        '404':
+          description: Failed to find the data.
+          content:
+            application/json:
+                schema:
+                  $ref: '#/components/schemas/GeneralDataError'
+        '500':
+          description: Internal Error.
+          content:
+            application/json:
+                schema:
+                  $ref: '#/components/schemas/InternalError'
+      security:
+        - x-api-key: []
   /evaluate:
     post:
       tags:
