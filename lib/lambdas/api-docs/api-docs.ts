@@ -147,7 +147,7 @@ security:
   - x-api-key: []
     
 paths:
-  /rpds:
+  /rpds/{id}:
     get:
       tags:
         - get RPD files
