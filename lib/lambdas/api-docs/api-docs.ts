@@ -107,7 +107,7 @@ info:
     TBD
 
     
-    This PNNL-RCT API version is __0.4.1__. Current supported API functions include a project evaluation workflow and three miscelaneous functions.
+    This PNNL-RCT API version is __0.4.2__. Current supported API functions include a project evaluation workflow and three miscelaneous functions.
     
     Some useful links:
     - [ruleset-checking-tool repository](https://github.com/pnnl/ruleset-checking-tool)
@@ -125,7 +125,7 @@ info:
   license:
     name: MIT
     url: https://github.com/pnnl/ruleset-checking-tool/blob/master/LICENSE
-  version: 0.4.1
+  version: 0.4.2
 externalDocs:
   description: Find out more about Ruleset Checking Tool
   url: http://github.com/pnnl/ruleset-checking-tool
