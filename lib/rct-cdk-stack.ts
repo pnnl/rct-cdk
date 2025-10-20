@@ -204,6 +204,7 @@ export class RctCdkStack extends Stack {
     sessionsTable.grantReadWriteData(runRCTEvaluationLambda);
     sessionsTable.grantReadWriteData(retrieveRCTEvaluationOutputLambda);
     sessionsTable.grantReadWriteData(trackRCTProgressLambda);
+    sessionsTable.grantReadWriteData(retrieveRCTEvaluationInputLambda);
     input_bucket.grantReadWrite(runRCTEvaluationLambda);
     input_bucket.grantReadWrite(retrieveRCTEvaluationInputLambda);
     output_bucket.grantReadWrite(retrieveRCTEvaluationOutputLambda);

@@ -130,8 +130,6 @@ externalDocs:
   description: Find out more about Ruleset Checking Tool
   url: http://github.com/pnnl/ruleset-checking-tool
 servers:
-  - url: https://simcheck.energycode.pnnl.gov/
-    description: Production server
   - url: https://simcheck.energycode.pnnl.gov/v0
     description: Version 0 server
 tags:
@@ -152,11 +150,11 @@ paths:
       tags:
         - get RPD files
       summary: Get RPD input files
-      description: Call this function to get a list of RPD input files in a ziped format.
+      description: Call this function to get a list of RPD input files in a zipped format.
       parameters:
         - name: id
-          in: query
-          description: The session id of the RPD input files.
+          in: path
+          description: project evaluation session id
           required: true
           schema:
             type: string
