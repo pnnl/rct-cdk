@@ -106,9 +106,19 @@ info:
 
     The source code of PNNL's RCT is available on GitHub, out here:  
     https://github.com/pnnl/ruleset-checking-tool
-    
-    This PNNL-RCT API version is __0.4.2__. Current supported API functions include a project evaluation workflow and three miscelaneous functions.
-    
+
+    # ASHRAE Standard 229P: Utilization Pathways
+    Standard 229P identifies two pathways for utilization, the **project checking path** and the **building performance modeling software checking path**. The **project checking path** evaluates the implementation of ruleset requirements in building performance models and the building performance modeling software checking path evaluates the implementation of rulesets in building performance modeling software that fully or partially automate the implementation of ruleset requirements.
+
+    ## Project Checking Path
+    The project checking path requires a set of Ruleset Project Descriptions (RPD) files and query parameters (see details in 'POST -> /evaluate'). The workflow consists of three main steps: 
+    1. **Evaluate**: Make a 'POST /evaluate' call to initiate the RCT evaluation process. This returns a calculation 'sessionId'.
+    2. **Check Status**: Use the 'sessionId' from step 1 to call 'GET /evaluate/{id}' and check the status of the evaluation.
+    3. **Get Results**: Once the calculation status is 'SUCCESS', call 'POST /evaluate/{id}' with the 'sessionId' to retrieve the results.
+
+    This PNNL-RCT API version is __0.4.2__. Current supported API functions include support for the project checking path and three miscellaneous functions.
+
+
     Some useful links:
     - [ruleset-checking-tool repository](https://github.com/pnnl/ruleset-checking-tool)
     - [ASHRAE Standard Proejct Committee 229](https://tpc.ashrae.org/?cmtKey=9ffa4db6-eebe-4418-a8c4-d0c220603735)
@@ -116,17 +126,12 @@ info:
     - [Ruleset Evaluation Schema](https://github.com/open229/ruleset-model-description-schema/blob/develop/docs229/ASHRAE229.schema.json)
     - [Example ruleset project description files](https://github.com/pnnl/ruleset-checking-tool/tree/master/examples/chicago_demo)
 
-    # ASHRAE Standard 229P: Utilization Pathways
-    Standard 229P identifies two pathways for utilization, the **project checking path** and the **building performance modeling software checking path**. The **project checking path** evaluates the implementation of ruleset requirements in building performance models and the building performance modeling software checking path evaluates the implementation of rulesets in building performance modeling software that fully or partially automate the implementation of ruleset requirements.
 
-    ## Project Checking Path
-    The project checking path requires a set of Ruleset Project Descriptions (RPD) files and query parameters (see details in 'POST -> /evaluate'). The workflow consists of three main steps: 
-
-  termsOfService: NA
+  termsOfService: https://github.com/pnnl/ruleset-checking-tool/blob/develop/DISCLAIMER.md
   contact:
     email: weili.xu@pnnl.gov
   license:
-    name: MIT
+    name: Copyright
     url: https://github.com/pnnl/ruleset-checking-tool/blob/master/LICENSE
   version: 0.4.2
 externalDocs:
