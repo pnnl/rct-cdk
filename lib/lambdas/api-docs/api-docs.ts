@@ -104,8 +104,7 @@ info:
    
     More information about 229P can be found on ASHRAE 229 Project Committee [page](https://tpc.ashrae.org/?cmtKey=9ffa4db6-eebe-4418-a8c4-d0c220603735).
 
-    The source code of PNNL's RCT is available on GitHub, out here:  
-    https://github.com/pnnl/ruleset-checking-tool
+    The source code of PNNL's RCT is available on GitHub, check out here: [https://github.com/pnnl/ruleset-checking-tool](https://simcheck.energycode.pnnl.gov/v0/docs)
 
     # ASHRAE Standard 229P: Utilization Pathways
     Standard 229P identifies two pathways for utilization, the **project checking path** and the **building performance modeling software checking path**. The **project checking path** evaluates the implementation of ruleset requirements in building performance models and the building performance modeling software checking path evaluates the implementation of rulesets in building performance modeling software that fully or partially automate the implementation of ruleset requirements.
