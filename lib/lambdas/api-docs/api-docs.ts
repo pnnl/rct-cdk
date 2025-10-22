@@ -104,10 +104,17 @@ info:
    
     More information about 229P can be found on ASHRAE 229 Project Committee [page](https://tpc.ashrae.org/?cmtKey=9ffa4db6-eebe-4418-a8c4-d0c220603735).
 
-    The source code of PNNL’s RCT is available on GitHub, out here:  
+    The source code of PNNL's RCT is available on GitHub, out here:  
     https://github.com/pnnl/ruleset-checking-tool
     
-    The PNNL-RCT is now also hosted as a web service and available for public testing and use.  
+    This PNNL-RCT API version is __0.4.2__. Current supported API functions include a project evaluation workflow and three miscelaneous functions.
+    
+    Some useful links:
+    - [ruleset-checking-tool repository](https://github.com/pnnl/ruleset-checking-tool)
+    - [ASHRAE Standard Proejct Committee 229](https://tpc.ashrae.org/?cmtKey=9ffa4db6-eebe-4418-a8c4-d0c220603735)
+    - [ruleset-checking-tool wiki](https://github.com/pnnl/ruleset-checking-tool/wiki)
+    - [Ruleset Evaluation Schema](https://github.com/open229/ruleset-model-description-schema/blob/develop/docs229/ASHRAE229.schema.json)
+    - [Example ruleset project description files](https://github.com/pnnl/ruleset-checking-tool/tree/master/examples/chicago_demo)
 
     # ASHRAE Standard 229P: Utilization Pathways
     Standard 229P identifies two pathways for utilization, the **project checking path** and the **building performance modeling software checking path**. The **project checking path** evaluates the implementation of ruleset requirements in building performance models and the building performance modeling software checking path evaluates the implementation of rulesets in building performance modeling software that fully or partially automate the implementation of ruleset requirements.
@@ -121,13 +128,11 @@ info:
   license:
     name: MIT
     url: https://github.com/pnnl/ruleset-checking-tool/blob/master/LICENSE
-  version: 0.4.1
+  version: 0.4.2
 externalDocs:
   description: Find out more about Ruleset Checking Tool
   url: http://github.com/pnnl/ruleset-checking-tool
 servers:
-  - url: https://simcheck.energycode.pnnl.gov/
-    description: Production server
   - url: https://simcheck.energycode.pnnl.gov/v0
     description: Version 0 server
 tags:
@@ -148,11 +153,11 @@ paths:
       tags:
         - get RPD files
       summary: Get RPD input files
-      description: Call this function to get a list of RPD input files in a ziped format.
+      description: Call this function to get a list of RPD input files in a zipped format.
       parameters:
         - name: id
-          in: query
-          description: The session id of the RPD input files.
+          in: path
+          description: project evaluation session id
           required: true
           schema:
             type: string
