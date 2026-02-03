@@ -61,6 +61,57 @@ output = json
 
 ---
 
+## Infrastructure Requirements and Assumptions
+
+### VPC Requirements
+- A pre-existing VPC must be available and its ID must be provided via `vpcId` prop
+- The VPC must have subnets configured with `PRIVATE_WITH_EGRESS` access
+- The VPC is used by both the API stack and API key rotation stack
+
+### Stack Dependencies
+1. VPC must be deployed first
+2. RCT Resource Stack must be deployed before the main RCT CDK Stack
+3. Resources with RETAIN removal policy will persist after stack deletion
+4. API keys and usage plans are managed through the CDK deployment
+
+### Required Stack Properties
+All stacks require:
+- `resourcePrefix`: String used to prefix all resource names
+- `vpcId`: ID of the existing VPC to use
+
+### Resource Stack Details
+- Creates versioned resources for each API version
+- Per version resources:
+  - Input S3 bucket (KMS encrypted, public access blocked)
+  - Output S3 bucket (KMS encrypted, public access blocked, versioning enabled)
+  - DynamoDB session table
+- S3 buckets use RETAIN removal policy
+- Session tables use DESTROY removal policy
+
+### API Configuration
+- Uses "prod" stage
+- Supports binary media types (application/octet-stream, application/zip)
+- Requires API key for most endpoints
+- Has usage plan with rate limiting (2 req/s, burst 3)
+- Daily API key rotation with SNS notifications
+
+### Lambda Functions
+- Runtime: NodeJS 20.x
+- Timeout: 30 seconds
+- VPC access: Requires private subnet access
+- Required permissions:
+  - DynamoDB table access
+  - S3 bucket access
+  - API Gateway permissions
+  - Systems Manager Parameter Store access
+
+### Parameter Store Requirements
+The following SSM parameters are managed:
+- `/{resourcePrefix}-api-key-id`: Stores the API Gateway API key ID
+- `/{resourcePrefix}-usage-plan-id`: Stores the usage plan ID
+
+---
+
 ## Useful CDK Commands
 
 List all stacks:
@@ -91,5 +142,3 @@ See differences between deployed and local stack:
 
 ```bash
 npx cdk diff --profile my-project
-```
-
