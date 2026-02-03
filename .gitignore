@@ -7,4 +7,6 @@ node_modules
 .cdk.staging
 cdk.out
 .env
+.venv
+cdk.context.json
 **/*.DS_Store

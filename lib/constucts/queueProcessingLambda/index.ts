@@ -14,28 +14,27 @@ import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { ApiVersion, apiVersionMap } from "../../enums/rct-version"
 
 interface QueueProcessingLambdaProps {
-    applicationName: string
-    deploymentEnv: string
+    resourcePrefix: string
     apiVersion: ApiVersion
 }
 
 export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLambdaProps) => {
 
-    const { applicationName, deploymentEnv, apiVersion } = props;
+    const { resourcePrefix, apiVersion } = props;
 
-    const inputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-${apiVersion}-input-bucket-export`);
-    const outputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-${apiVersion}-output-bucket-export`);
+    const inputBucketName = Fn.importValue(`${resourcePrefix}-${apiVersion}-input-bucket-export`);
+    const outputBucketName = Fn.importValue(`${resourcePrefix}-${apiVersion}-output-bucket-export`);
 
-    const inputBucket = Bucket.fromBucketName(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-input-bucket`, inputBucketName);
-    const outputBucket = Bucket.fromBucketName(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-output-bucket`, outputBucketName);
+    const inputBucket = Bucket.fromBucketName(scope, `${resourcePrefix}-${apiVersion}-input-bucket`, inputBucketName);
+    const outputBucket = Bucket.fromBucketName(scope, `${resourcePrefix}-${apiVersion}-output-bucket`, outputBucketName);
 
     // Create an SQS dead letter queue
-    const dlqueue = new Queue(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-dl-queue`, {
+    const dlqueue = new Queue(scope, `${resourcePrefix}-${apiVersion}-dl-queue`, {
         retentionPeriod: Duration.days(14)
     });
 
     // Create an SQS queue
-    const queue = new Queue(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-queue`, {
+    const queue = new Queue(scope, `${resourcePrefix}-${apiVersion}-queue`, {
         visibilityTimeout: Duration.seconds(900),
         receiveMessageWaitTime: Duration.seconds(20), // Long polling
         retentionPeriod: Duration.days(4),
@@ -47,13 +46,13 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
         }
     });
 
-    const ruleCheckLogGroup = new LogGroup(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-check-log-group`, {
+    const ruleCheckLogGroup = new LogGroup(scope, `${resourcePrefix}-${apiVersion}-check-log-group`, {
         removalPolicy: RemovalPolicy.DESTROY
     });
 
     const versionToInstall = apiVersionMap[apiVersion];
     // Create a Lambda function
-    const lambdaFunctionCheck = new Function(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-check-lambda`, {
+    const lambdaFunctionCheck = new Function(scope, `${resourcePrefix}-${apiVersion}-check-lambda`, {
         runtime: Runtime.FROM_IMAGE,
         handler: Handler.FROM_IMAGE,
         code: Code.fromAssetImage(path.join(__dirname, 'lambda'), {
@@ -67,7 +66,7 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
             inputBucket: inputBucket.bucketName,
             outputBucket: outputBucket.bucketName,
             region: 'us-west-2',
-            tableName: `${applicationName}-${deploymentEnv}-${apiVersion}-session`
+            tableName: `${resourcePrefix}-${apiVersion}-session`
         },
         reservedConcurrentExecutions: 3,
     });
@@ -75,13 +74,13 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
     // get the dynamo table
     const sessionsTable = Table.fromTableName(
         scope,
-        `${applicationName}-${deploymentEnv}-${apiVersion}-table`,
-        `${applicationName}-${deploymentEnv}-${apiVersion}-session`
+        `${resourcePrefix}-${apiVersion}-table`,
+        `${resourcePrefix}-${apiVersion}-session`
     );
 
     const lambdaFunctionFilter = new NodejsFunction(
         scope,
-        `${applicationName}-${deploymentEnv}-${apiVersion}-logging`,
+        `${resourcePrefix}-${apiVersion}-logging`,
         {
             entry: path.join(__dirname, "..", "..", "lambdas", "logging.ts"),
             depsLockFilePath: path.join(__dirname, "..", "..", "package-lock.json"),
@@ -89,7 +88,7 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
                 inputBucket: inputBucket.bucketName,
                 outputBucket: outputBucket.bucketName,
                 region: 'us-west-2',
-                tableName: `${applicationName}-${deploymentEnv}-${apiVersion}-session`,
+                tableName: `${resourcePrefix}-${apiVersion}-session`,
             },
             runtime: Runtime.NODEJS_20_X,
             timeout: Duration.minutes(15),
@@ -101,7 +100,7 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
     sessionsTable.grantReadWriteData(lambdaFunctionFilter);
     sessionsTable.grantReadWriteData(lambdaFunctionCheck);
 
-    new SubscriptionFilter(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-sub-filter`, {
+    new SubscriptionFilter(scope, `${resourcePrefix}-${apiVersion}-sub-filter`, {
         logGroup: lambdaFunctionCheck.logGroup,
         destination: new LambdaDestination(lambdaFunctionFilter),
         filterPattern: FilterPattern.literal('Project Evaluation Session ID'),

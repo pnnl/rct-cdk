@@ -5,13 +5,10 @@ import { AttributeType, Table } from 'aws-cdk-lib/aws-dynamodb';
 import { ApiVersion } from './enums/rct-version';
 
 interface RctCdkResourceStackProps extends StackProps {
-    applicationName: string
-    deploymentEnv: string
+    resourcePrefix: string
 }
 
-interface VersionedRctCdkResourceStackProps extends StackProps {
-    applicationName: string
-    deploymentEnv: string
+interface VersionedRctCdkResourceStackProps extends RctCdkResourceStackProps {
     apiVersion: ApiVersion;
 }
 
@@ -28,44 +25,41 @@ export class RctResourceStack extends Stack {
     }
 
     private createVersionedApiResources(props: VersionedRctCdkResourceStackProps) {
-        const { applicationName, deploymentEnv, apiVersion } = props;
+        const { resourcePrefix, apiVersion } = props;
 
-        const inputBucket = new Bucket(this, `${applicationName}-${deploymentEnv}-${apiVersion}-input-bucket`, {
+        const inputBucket = new Bucket(this, `${resourcePrefix}-${apiVersion}-input-bucket`, {
             encryption: BucketEncryption.KMS_MANAGED,
             blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
             removalPolicy: RemovalPolicy.RETAIN
         });
 
-        new CfnOutput(this, `${applicationName}-${deploymentEnv}-${apiVersion}-input-bucket-output`,
+        new CfnOutput(this, `${resourcePrefix}-${apiVersion}-input-bucket-output`,
             {
                 value: inputBucket.bucketName,
-                exportName: `${applicationName}-${deploymentEnv}-${apiVersion}-input-bucket-export`
+                exportName: `${resourcePrefix}-${apiVersion}-input-bucket-export`
             }
         );
 
-        // Create an output S3 bucket
-        const outputBucket = new Bucket(this, `${applicationName}-${deploymentEnv}-${apiVersion}-output-bucket`, {
+        const outputBucket = new Bucket(this, `${resourcePrefix}-${apiVersion}-output-bucket`, {
             encryption: BucketEncryption.KMS_MANAGED,
             blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
             versioned: true,
             removalPolicy: RemovalPolicy.RETAIN
         });
 
-        new CfnOutput(this, `${applicationName}-${deploymentEnv}-${apiVersion}-output-bucket-output`,
+        new CfnOutput(this, `${resourcePrefix}-${apiVersion}-output-bucket-output`,
             {
                 value: outputBucket.bucketName,
-                exportName: `${applicationName}-${deploymentEnv}-${apiVersion}-output-bucket-export`
+                exportName: `${resourcePrefix}-${apiVersion}-output-bucket-export`
             }
         );
 
-        //Create a Dynamo Table
-        //Create dynamoDB
-        new Table(this, `${applicationName}-${deploymentEnv}-${apiVersion}-session`, {
+        new Table(this, `${resourcePrefix}-${apiVersion}-session`, {
             partitionKey: {
                 name: 'sessionId',
                 type: AttributeType.STRING
             },
-            tableName: `${applicationName}-${deploymentEnv}-${apiVersion}-session`,
+            tableName: `${resourcePrefix}-${apiVersion}-session`,
 
             /**
             *  The default removal policy is RETAIN, which means that cdk destroy will not attempt to delete
