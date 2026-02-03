@@ -19,14 +19,12 @@ import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import { ApiVersion } from "./enums/rct-version";
 
 export interface RCTStackProps extends StackProps {
-  applicationName: string;
-  deploymentEnv: string;
+  resourcePrefix: string;
+  vpcId: string;
 }
 
-interface VersionedRCTStackProps extends StackProps {
+interface VersionedRCTStackProps extends RCTStackProps {
   api: RestApi;
-  applicationName: string;
-  deploymentEnv: string;
   apiVersion: ApiVersion;
 }
 
@@ -34,7 +32,7 @@ export class RctCdkStack extends Stack {
   constructor(scope: Construct, id: string, props: RCTStackProps) {
     super(scope, id, props);
 
-    const { applicationName, deploymentEnv } = props;
+    const { resourcePrefix } = props;
 
     const mainPolicy = new PolicyStatement({
       effect: Effect.ALLOW,
@@ -49,7 +47,7 @@ export class RctCdkStack extends Stack {
 
     // Create an API Gateway resource for each of the CRUD operations
     const api = new RestApi(this, "rct", {
-      restApiName: `${applicationName}-${deploymentEnv}-api`,
+      restApiName: `${resourcePrefix}-api`,
       // In case you want to manage binary types, uncomment the following
       binaryMediaTypes: ["application/octet-stream", "application/zip"],
       policy: mainPolicyDocument,
@@ -58,11 +56,11 @@ export class RctCdkStack extends Stack {
       }
     });
 
-    const apiKey = api.addApiKey(`${applicationName}-${deploymentEnv}-api-key`, {
-      apiKeyName: `${applicationName}-${deploymentEnv}-api-key`,
+    const apiKey = api.addApiKey(`${resourcePrefix}-api-key`, {
+      apiKeyName: `${resourcePrefix}-api-key`,
     });
-    const usagePlan = api.addUsagePlan(`${applicationName}-${deploymentEnv}-usage-plan`, {
-      name: `${applicationName}-${deploymentEnv}-usage-plan`,
+    const usagePlan = api.addUsagePlan(`${resourcePrefix}-usage-plan`, {
+      name: `${resourcePrefix}-usage-plan`,
       throttle: {
         rateLimit: 2,
         burstLimit: 3,
@@ -75,13 +73,13 @@ export class RctCdkStack extends Stack {
     });
     usagePlan.addApiKey(apiKey);
 
-    new StringParameter(this, `${applicationName}-${deploymentEnv}-api-key-param`, {
-      parameterName: `/${applicationName}-${deploymentEnv}-api-key-id`,
+    new StringParameter(this, `${resourcePrefix}-api-key-param`, {
+      parameterName: `/${resourcePrefix}-api-key-id`,
       stringValue: apiKey.keyId,
     });
 
-    new StringParameter(this, `${applicationName}-${deploymentEnv}-usage-plan-id`, {
-      parameterName: `/${applicationName}-${deploymentEnv}-usage-plan-id`,
+    new StringParameter(this, `${resourcePrefix}-usage-plan-id`, {
+      parameterName: `/${resourcePrefix}-usage-plan-id`,
       stringValue: usagePlan.usagePlanId,
     });
 
@@ -95,10 +93,10 @@ export class RctCdkStack extends Stack {
   }
 
   private createVersionedApiResources(props: VersionedRCTStackProps) {
-    const { applicationName, deploymentEnv, apiVersion, api } = props;
+    const { resourcePrefix, apiVersion, api, vpcId } = props;
     
-    const inputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-${apiVersion}-input-bucket-export`);
-    const outputBucketName = Fn.importValue(`${applicationName}-${deploymentEnv}-${apiVersion}-output-bucket-export`);
+    const inputBucketName = Fn.importValue(`${resourcePrefix}-${apiVersion}-input-bucket-export`);
+    const outputBucketName = Fn.importValue(`${resourcePrefix}-${apiVersion}-output-bucket-export`);
 
     const input_bucket = Bucket.fromBucketName(
       this,
@@ -115,15 +113,15 @@ export class RctCdkStack extends Stack {
     // get the dynamo table
     const sessionsTable = Table.fromTableName(
       this,
-      `${applicationName}-${deploymentEnv}-${apiVersion}-session`,
-      `${applicationName}-${deploymentEnv}-${apiVersion}-session`
+      `${resourcePrefix}-${apiVersion}-session`,
+      `${resourcePrefix}-${apiVersion}-session`
     );
 
     const vpc = Vpc.fromLookup(
       this,
-      `${applicationName}-${deploymentEnv}-${apiVersion}-ec2`,
-      { vpcId: "vpc-00ff3e7b236c5f892" }
-    ); //find one PNNL created
+      `${resourcePrefix}-${apiVersion}-ec2`,
+      { vpcId: vpcId }
+    );
 
     //subnet id values
     const subnets = vpc.selectSubnets({
@@ -145,14 +143,13 @@ export class RctCdkStack extends Stack {
     };
 
     // Lambda functions
-    const runRCTEvaluationLambda = new NodejsFunction(this, `${applicationName}-${deploymentEnv}-${apiVersion}-runRCT`, {
+    const runRCTEvaluationLambda = new NodejsFunction(this, `${resourcePrefix}-${apiVersion}-runRCT`, {
       entry: join(__dirname, "lambdas", "run-rct.ts"),
       ...nodeJsFunctionProps,
-      // do we need to add policy for this lambda to access ECS?
     });
 
     // API spec
-    const apiDocsLambda = new NodejsFunction(this, `${applicationName}-${deploymentEnv}-${apiVersion}-apiDocs`, {
+    const apiDocsLambda = new NodejsFunction(this, `${resourcePrefix}-${apiVersion}-apiDocs`, {
       entry: join(__dirname, "lambdas", "api-docs", "api-docs.ts"),
       ...nodeJsFunctionProps
     });
@@ -160,7 +157,7 @@ export class RctCdkStack extends Stack {
     //tracking the RCT evaluation progress
     const trackRCTProgressLambda = new NodejsFunction(
       this,
-      `${applicationName}-${deploymentEnv}-${apiVersion}-trackRCTEvaluation`,
+      `${resourcePrefix}-${apiVersion}-trackRCTEvaluation`,
       {
         entry: join(__dirname, "lambdas", "track-rct.ts"),
         ...nodeJsFunctionProps,
@@ -170,7 +167,7 @@ export class RctCdkStack extends Stack {
     //Retrieve input files
     const retrieveRCTEvaluationInputLambda = new NodejsFunction(
       this,
-      `${applicationName}-${deploymentEnv}-${apiVersion}-retrieveRCTInput`,
+      `${resourcePrefix}-${apiVersion}-retrieveRCTInput`,
       {
         entry: join(__dirname, "lambdas", "retrieve-rct-input.ts"),
         ...nodeJsFunctionProps,
@@ -180,7 +177,7 @@ export class RctCdkStack extends Stack {
     //Retrieve output files
     const retrieveRCTEvaluationOutputLambda = new NodejsFunction(
       this,
-      `${applicationName}-${deploymentEnv}-${apiVersion}-retrieveRCTOutput`,
+      `${resourcePrefix}-${apiVersion}-retrieveRCTOutput`,
       {
         entry: join(__dirname, "lambdas", "retrieve-rct-output.ts"),
         ...nodeJsFunctionProps,

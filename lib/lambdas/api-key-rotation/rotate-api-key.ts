@@ -6,17 +6,16 @@ const sns = new SNS();
 const ssm = new SSMClient();
 
 exports.handler = async () => {
-  const applicationName = process.env.APPLICATION_NAME || '';
-  const deploymentEnv = process.env.DEPLOYMENT_ENV || '';
+  const resourcePrefix = process.env.RESOURCE_PREFIX || '';
   const topicArn = process.env.SNS_TOPIC_ARN || '';
 
   const usagePlanIdParam = await ssm.send(new GetParameterCommand({
-    Name: `${applicationName}-${deploymentEnv}-usage-plan-id`,
+    Name: `${resourcePrefix}-usage-plan-id`,
   }));
   const usagePlanId = usagePlanIdParam.Parameter?.Value!;
 
   const apiKeyIdParam = await ssm.send(new GetParameterCommand({
-    Name: `${applicationName}-${deploymentEnv}-api-key-id`,
+    Name: `${resourcePrefix}-api-key-id`,
   }));
   const existingApiKeyId = apiKeyIdParam.Parameter?.Value!
 
@@ -33,7 +32,7 @@ exports.handler = async () => {
 
   if (ageInDays >= expirationDuration) {
     const newKey = await apiGateway.createApiKey({
-      name: `${applicationName}-${deploymentEnv}-api-key`,
+      name: `${resourcePrefix}-api-key`,
       enabled: true,
       generateDistinctId: true,
     }).promise();
@@ -45,7 +44,7 @@ exports.handler = async () => {
     }).promise();
 
     await ssm.send(new PutParameterCommand({
-      Name: `${applicationName}-${deploymentEnv}-api-key-id`,
+      Name: `${resourcePrefix}-api-key-id`,
       Value: newKey.id!,
       Overwrite: true,
     }));

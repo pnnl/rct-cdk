@@ -10,8 +10,9 @@ require("dotenv").config();
 const {
   ACCOUNT,
   REGION,
-  applicationName = 'rct',
-  deploymentEnv = 'dev'
+  APPLICATION_NAME = 'rct',
+  DEPLOYMENT_ENV = 'dev',
+  VPC_ID
 } = process.env;
 
 const app = new App();
@@ -19,13 +20,14 @@ const app = new App();
 // Comment out of you need to check best practices then run: cdk ls
 // Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
 
-new RctResourceStack(app, `${applicationName}-${deploymentEnv}-resource-stack`, {
+const resourcePrefix = `${APPLICATION_NAME}-${DEPLOYMENT_ENV}`;
+
+new RctResourceStack(app, `${resourcePrefix}-resource-stack`, {
   env: { account: String(ACCOUNT), region: String(REGION) },
-  applicationName: String(applicationName),
-  deploymentEnv: String(deploymentEnv)
+  resourcePrefix: resourcePrefix,
 });
 
-new RctCdkStack(app, `${applicationName}-${deploymentEnv}-stack`, {
+new RctCdkStack(app, `${resourcePrefix}-stack`, {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
@@ -33,13 +35,13 @@ new RctCdkStack(app, `${applicationName}-${deploymentEnv}-stack`, {
   /* Uncomment the next line if you know exactly what Account and Region you
    * want to deploy the stack to. */
   env: { account: String(ACCOUNT), region: String(REGION) },
-  applicationName: String(applicationName),
-  deploymentEnv: String(deploymentEnv)
+  resourcePrefix: resourcePrefix,
+  vpcId: String(VPC_ID)
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
 });
 
-new RctApiKeyRotationStack(app, `${applicationName}-${deploymentEnv}-api-key-rotation-stack`, {
+new RctApiKeyRotationStack(app, `${resourcePrefix}-api-key-rotation-stack`, {
   env: { account: String(ACCOUNT), region: String(REGION) },
-  applicationName: String(applicationName),
-  deploymentEnv: String(deploymentEnv)
+  resourcePrefix: resourcePrefix,
+  vpcId: String(VPC_ID)
 });

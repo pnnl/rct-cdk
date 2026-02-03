@@ -15,17 +15,17 @@ import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { join } from "path";
 
 export interface RCTStackProps extends StackProps {
-  applicationName: string;
-  deploymentEnv: string;
+  resourcePrefix: string;
+  vpcId: string;
 }
 
 export class RctApiKeyRotationStack extends Stack {
   constructor(scope: Construct, id: string, props: RCTStackProps) {
     super(scope, id, props);
 
-    const { applicationName, deploymentEnv } = props;
+    const { resourcePrefix, vpcId } = props;
 
-    const topic = new Topic(this, `${applicationName}-${deploymentEnv}-api-key-rotation-topic`);
+    const topic = new Topic(this, `${resourcePrefix}-api-key-rotation-topic`);
 
     const emailList = [
         'julian.slane-holloway@pnnl.gov',
@@ -37,8 +37,8 @@ export class RctApiKeyRotationStack extends Stack {
 
     const vpc = Vpc.fromLookup(
       this,
-      `${applicationName}-${deploymentEnv}-ec2`,
-      { vpcId: "vpc-00ff3e7b236c5f892" }
+      `${resourcePrefix}-ec2`,
+      { vpcId: vpcId }
     );
 
     const subnets = vpc.selectSubnets({
@@ -48,8 +48,7 @@ export class RctApiKeyRotationStack extends Stack {
     const nodeJsFunctionProps: NodejsFunctionProps = {
       depsLockFilePath: join(__dirname, "package-lock.json"),
       environment: {
-        APPLICATION_NAME: applicationName,
-        DEPLOYMENT_ENV: deploymentEnv,
+        RESOURCE_PREFIX: resourcePrefix,
         SNS_TOPIC_ARN: topic.topicArn,
         SUBNET_IDS: subnets.map((sub) => sub.subnetId).join(","),
       },
@@ -57,7 +56,7 @@ export class RctApiKeyRotationStack extends Stack {
       timeout: Duration.seconds(30),
     };
 
-    const rotateApiKeyLambda = new NodejsFunction(this, `${applicationName}-${deploymentEnv}-rotateApiKey`, {
+    const rotateApiKeyLambda = new NodejsFunction(this, `${resourcePrefix}-rotateApiKey`, {
       entry: join(__dirname, "lambdas", "api-key-rotation", "rotate-api-key.ts"),
       ...nodeJsFunctionProps,
     });
@@ -74,7 +73,7 @@ export class RctApiKeyRotationStack extends Stack {
       resources: ['*'],
     }));
 
-    new Rule(this, `${applicationName}-${deploymentEnv}-api-key-rotation-trigger`, {
+    new Rule(this, `${resourcePrefix}-api-key-rotation-trigger`, {
       schedule: Schedule.rate(Duration.days(1)),
       targets: [new LambdaFunction(rotateApiKeyLambda)],
     });

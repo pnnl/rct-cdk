@@ -5,16 +5,15 @@ import { Duration } from 'aws-cdk-lib';
 import { ApiVersion, apiVersionMap } from "../../enums/rct-version"
 
 interface RuleCountProps {
-    applicationName: string
-    deploymentEnv: string,
+    resourcePrefix: string
     apiVersion: ApiVersion
 }
 
 export const RuleCountLambda = (scope: Construct, props: RuleCountProps): Function => {
-    const { applicationName, deploymentEnv, apiVersion } = props
+    const { resourcePrefix, apiVersion } = props
     const versionToInstall = apiVersionMap[apiVersion];
     // Create a Lambda function
-    return new Function(scope, `${applicationName}-${deploymentEnv}-${apiVersion}-rule-lambda`, {
+    return new Function(scope, `${resourcePrefix}-${apiVersion}-rule-lambda`, {
         runtime: Runtime.FROM_IMAGE,
         handler: Handler.FROM_IMAGE,
         code: Code.fromAssetImage(path.join(__dirname, 'lambda'), {
