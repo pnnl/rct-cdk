@@ -17,6 +17,7 @@ import { join } from "path";
 export interface RCTStackProps extends StackProps {
   resourcePrefix: string;
   vpcId: string;
+  notificationEmails: string[];
 }
 
 export class RctApiKeyRotationStack extends Stack {
@@ -27,12 +28,8 @@ export class RctApiKeyRotationStack extends Stack {
 
     const topic = new Topic(this, `${resourcePrefix}-api-key-rotation-topic`);
 
-    const emailList = [
-        'julian.slane-holloway@pnnl.gov',
-        'weili.xu@pnnl.gov'
-    ];
-    for (const email of emailList) {
-        topic.addSubscription(new EmailSubscription(email));
+    for (const email of props.notificationEmails) {
+      topic.addSubscription(new EmailSubscription(email));
     }
 
     const vpc = Vpc.fromLookup(

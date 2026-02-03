@@ -14,13 +14,14 @@ import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { ApiVersion, apiVersionMap } from "../../enums/rct-version"
 
 interface QueueProcessingLambdaProps {
+    region: string
     resourcePrefix: string
     apiVersion: ApiVersion
 }
 
 export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLambdaProps) => {
 
-    const { resourcePrefix, apiVersion } = props;
+    const { region, resourcePrefix, apiVersion } = props;
 
     const inputBucketName = Fn.importValue(`${resourcePrefix}-${apiVersion}-input-bucket-export`);
     const outputBucketName = Fn.importValue(`${resourcePrefix}-${apiVersion}-output-bucket-export`);
@@ -65,7 +66,7 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
         environment: {
             inputBucket: inputBucket.bucketName,
             outputBucket: outputBucket.bucketName,
-            region: 'us-west-2',
+            region: region,
             tableName: `${resourcePrefix}-${apiVersion}-session`
         },
         reservedConcurrentExecutions: 3,
@@ -87,7 +88,7 @@ export const QueueProcessingLambda = (scope: Construct, props: QueueProcessingLa
             environment: {
                 inputBucket: inputBucket.bucketName,
                 outputBucket: outputBucket.bucketName,
-                region: 'us-west-2',
+                region: region,
                 tableName: `${resourcePrefix}-${apiVersion}-session`,
             },
             runtime: Runtime.NODEJS_20_X,

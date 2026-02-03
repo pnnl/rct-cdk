@@ -279,6 +279,7 @@ export class RctCdkStack extends Stack {
     reports.addMethod("GET", countNumRuleSetReportsIntegration);
 
     QueueProcessingLambda(this, {
+      region: this.region,
       ...props,
     });
   }

@@ -43,5 +43,6 @@ new RctCdkStack(app, `${resourcePrefix}-stack`, {
 new RctApiKeyRotationStack(app, `${resourcePrefix}-api-key-rotation-stack`, {
   env: { account: String(ACCOUNT), region: String(REGION) },
   resourcePrefix: resourcePrefix,
-  vpcId: String(VPC_ID)
+  vpcId: String(VPC_ID),
+  notificationEmails: []
 });
